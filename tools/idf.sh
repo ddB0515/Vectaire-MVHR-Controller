@@ -30,7 +30,18 @@ done
 is_wsl() { grep -qi microsoft /proc/sys/kernel/osrelease 2>/dev/null; }
 
 activate="$HOME/.espressif/tools/activate_idf_v$idf.sh"
-if [ ! -f "$activate" ]; then
+active=""      # ESP-IDF already set up in this shell (CI: the espressif/idf Docker image), if it is the right version
+if [ ! -f "$activate" ] && [ -n "${IDF_PATH:-}" ] && command -v idf.py >/dev/null; then
+    h=$IDF_PATH/components/esp_common/include/esp_idf_version.h
+    v="$(awk '/define ESP_IDF_VERSION_MAJOR/ {print $3}' "$h").$(awk '/define ESP_IDF_VERSION_MINOR/ {print $3}' "$h")"
+    if [ "$v" = "$idf" ] || [ "$v.$(awk '/define ESP_IDF_VERSION_PATCH/ {print $3}' "$h")" = "$idf" ]; then
+        active=1
+    else
+        echo "the active ESP-IDF ($IDF_PATH) is v$v, this project wants v$idf" >&2
+        exit 2
+    fi
+fi
+if [ ! -f "$activate" ] && [ -z "$active" ]; then
     echo "ESP-IDF v$idf is not installed ($activate missing). Install it with the ESP-IDF Installation Manager:" >&2
     echo "    eim install -i v$idf" >&2
     exit 2
@@ -66,6 +77,9 @@ fi
 mkdir -p "$dir"
 echo "$idf" > "$marker"
 
+if [ -n "$active" ]; then
+    exec idf.py "${args[@]}" "$@"
+fi
 while IFS='=' read -r key value; do
     [ -n "$key" ] && export "$key=$value"
 done < <(bash "$activate" -e)

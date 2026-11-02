@@ -509,3 +509,48 @@ the password.
 
 **Release habit:** raise `PROJECT_VER` in the top-level `CMakeLists.txt` for every release. The version shows on the
 screen, on the web page and in Home Assistant.
+
+### Releases (GitHub Actions)
+
+[`.github/workflows/release.yml`](.github/workflows/release.yml) builds the two release variants in Espressif's
+`espressif/idf:v6.1` Docker image, with the same `tools/idf.sh` commands as above:
+
+| Variant | Board |
+|---|---|
+| `esp32c5-display` | NiceMCU C5E-DEV 2.8IPS (ESP32-C5 with touch screen) |
+| `esp32-headless` | Classic ESP32 board without a screen |
+
+The other headless chips (C3, S3, C5, C6) are built locally with `tools/idf.sh --headless <target> build`.
+
+**Making a release:**
+
+1. Raise `PROJECT_VER` in `CMakeLists.txt` (e.g. `0.9.1`) and commit.
+2. Tag that commit with the same version and push the tag:
+
+   ```bash
+   git tag v0.9.1
+   git push origin v0.9.1
+   ```
+
+3. The workflow builds both variants and publishes a GitHub Release `v0.9.1` with these files:
+
+   | File | Use |
+   |---|---|
+   | `vectaire-<ver>-<variant>-ota.bin` | Update over Wi-Fi; keeps all settings |
+   | `vectaire-<ver>-<variant>-factory.bin` | First install over USB at address 0 (`esptool.py --chip esp32c5 write_flash 0x0 <file>`, `--chip esp32` for headless). **Erases the saved settings**, the device password included |
+   | `vectaire-<ver>-<variant>.elf` | Decoding a crash report from the Diagnostics page (`addr2line -e <file> <address>`) |
+   | `SHA256SUMS` | Checksums |
+
+A tag that doesn't match `PROJECT_VER` stops the workflow before anything is published. **Run workflow** on the
+Actions tab builds the same files without a release; they stay attached to that run as artifacts.
+
+To install a release's OTA file without building, send it as `ota.sh` would:
+
+```bash
+read -rsp 'Device password: ' p; echo
+curl -fsS -H @<(printf 'X-OTA-Password: %s\n' "$p") \
+     --data-binary @vectaire-0.9.1-esp32c5-display-ota.bin http://vectaire-xxxx.local/api/ota
+unset p
+```
+
+The header comes from a pipe, so the password stays out of the process list and the shell history.
