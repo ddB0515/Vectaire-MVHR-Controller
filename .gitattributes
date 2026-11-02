@@ -1,0 +1,11 @@
+# Text files are stored with LF; shell scripts and build files also stay LF in a Windows checkout
+# (a CRLF bash script fails with "bash\r: No such file or directory").
+* text=auto
+*.sh text eol=lf
+*.py text eol=lf
+*.csv text eol=lf
+CMakeLists.txt text eol=lf
+Kconfig* text eol=lf
+sdkconfig* text eol=lf
+*.pdf binary
+*.png binary

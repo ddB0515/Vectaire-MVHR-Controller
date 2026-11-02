@@ -1,0 +1,16 @@
+# Shared by both variants; the top-level CMakeLists.txt adds sdkconfig.defaults.display or .headless
+
+# Custom partition table with two OTA slots (file set per variant)
+CONFIG_PARTITION_TABLE_CUSTOM=y
+
+# RTOS
+CONFIG_FREERTOS_HZ=1000
+
+# Core dump to flash for post-mortem diagnostics
+CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
+
+# phones open many connections while probing the captive portal
+CONFIG_LWIP_MAX_SOCKETS=16
+
+# OTA over Wi-Fi: a new image that crashes or never confirms rolls back to the previous one
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y

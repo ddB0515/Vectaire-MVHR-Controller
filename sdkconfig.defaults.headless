@@ -1,0 +1,5 @@
+# Headless variant: any ESP32 / C3 / S3 / C5 / C6 board with at least 4 MB flash; no PSRAM needed.
+# Pins and the status LED default per chip (main/Kconfig.projbuild); change them with
+# tools/idf.sh --headless <target> menuconfig  (menu "Vectaire").
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_4mb.csv"

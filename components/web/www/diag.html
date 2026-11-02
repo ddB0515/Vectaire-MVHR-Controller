@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vectaire diagnostics</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--text:#1d2730;--muted:#62707c;--accent:#1f6fb2;--ok:#1e8a4c;--err:#c0392b;--warn:#9a4a00;--line:#dde3e8}
+@media (prefers-color-scheme:dark){:root{--bg:#11181f;--card:#1a232c;--text:#e4eaef;--muted:#93a1ad;--accent:#5aa9e6;--ok:#4cc38a;--err:#ff7b6b;--warn:#ffb35c;--line:#2b3640}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:460px;margin:0 auto;padding:16px}
+h1{font-size:1.35rem;margin:8px 0 4px}p.sub{color:var(--muted);margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+h2{font-size:1rem;margin:0 0 10px;display:flex;justify-content:space-between;align-items:baseline}
+h2 small{font-weight:600;font-size:.8rem}
+button{width:100%;padding:12px;font-size:1rem;font-weight:600;border:0;border-radius:8px;background:var(--accent);color:#fff;margin-top:14px;cursor:pointer}
+button.ghost{background:var(--bg);color:var(--text);border:1px solid var(--line)}
+button:disabled{opacity:.45;cursor:default}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line)}.kv:last-child{border:0}
+.kv span:first-child{color:var(--muted)}.kv span:last-child{text-align:right;font-variant-numeric:tabular-nums}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;white-space:pre;margin:8px 0 0;max-height:420px;overflow-y:auto}
+.meta{color:var(--muted);font-size:.85rem}
+.ok{color:var(--ok)}.err{color:var(--err)}.warn{color:var(--warn)}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<main>
+<h1>Diagnostics</h1>
+<p class="sub"><span id="sub">Loading...</span> · <a href="/">Back</a></p>
+
+<div class="card">
+  <h2>Bus <small id="health"></small></h2>
+  <div class="kv"><span>Unit</span><span id="online">-</span></div>
+  <div class="kv"><span>Requests / replies</span><span id="req">-</span></div>
+  <div class="kv"><span>Timeouts / failed requests</span><span id="to">-</span></div>
+  <div class="kv"><span>Echo frames (own TX heard)</span><span id="echo">-</span></div>
+  <div class="kv"><span>Bytes heard / while idle</span><span id="rx">-</span></div>
+  <div class="kv"><span>CRC / framing errors</span><span id="crc">-</span></div>
+  <div class="kv"><span>Reply time</span><span id="lat">-</span></div>
+  <div class="kv"><span>RX line idle level</span><span id="lvl">-</span></div>
+</div>
+
+<div class="card">
+  <h2>Wiring test</h2>
+  <p class="meta">Pulls the bus low for about 20 ms through IO2 and checks that RX sees it. The unit ignores this.</p>
+  <button class="ghost" id="txtest">Run wiring test</button>
+  <p id="txres"></p>
+</div>
+
+<div class="card">
+  <h2>Last bus attempts</h2>
+  <p class="meta">Oldest first. lvl = RX line before sending, stale = bytes discarded since the last attempt, byte@ms after sending.</p>
+  <pre id="att">-</pre>
+</div>
+
+<div class="card">
+  <h2>System</h2>
+  <div class="kv"><span>Firmware</span><span id="fw">-</span></div>
+  <div class="kv"><span>Hardware</span><span id="hw">-</span></div>
+  <div class="kv"><span>Last restart</span><span id="reset">-</span></div>
+  <div class="kv"><span>Running for</span><span id="up">-</span></div>
+  <div class="kv"><span>Internal RAM free / lowest</span><span id="heap">-</span></div>
+  <div class="kv"><span>Largest free block</span><span id="largest">-</span></div>
+  <div class="kv"><span>PSRAM free</span><span id="psram">-</span></div>
+  <div class="kv"><span>Wi-Fi</span><span id="wifi">-</span></div>
+  <div class="kv"><span>Home Assistant</span><span id="ha">-</span></div>
+  <div id="crashbox" style="display:none">
+    <p class="meta">Stored crash report (decode with addr2line against the matching build):</p>
+    <pre id="crash"></pre>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Bus trace</h2>
+  <p class="meta">Every byte from start-up until 4096 entries. T sent, R reply, I heard while idle, S discarded, K reply ok, X timeout.</p>
+  <button class="ghost" id="loadtrace">Show trace</button>
+  <pre id="trace" style="display:none"></pre>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const REASONS={'power-on':'Power on (or power was lost)',software:'Software restart (update, settings, restart)',
+  panic:'Crash',  'int-wdt':'Watchdog (interrupt)','task-wdt':'Watchdog (task)',wdt:'Watchdog',brownout:'Supply voltage dropped',external:'Reset pin'};
+function dur(s){const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return (d?d+' d ':'')+(d||h?h+' h ':'')+m+' min';}
+function kb(b){return b==null?'-':(b/1024).toFixed(b<10240?1:0)+' KB';}
+function set(id,t,cls){const e=$(id);e.textContent=t;e.className=cls||'';}
+async function j(u){const r=await fetch(u,{cache:'no-store'});return r.json();}
+async function poll(){
+  try{
+    const [b,c,s]=await Promise.all([j('/api/bus'),j('/api/crash'),j('/api/state')]);
+    const d=s.device||{};
+    set('sub',(d.name||'Vectaire')+(b.simulated?' · simulated unit':''));
+    const lost=b.requests?((b.requests-b.replies)/b.requests*100):0;
+    set('health',!b.online?'Unit not responding':lost>5?'Unreliable':'Healthy',!b.online?'err':lost>5?'warn':'ok');
+    set('online',b.online?'online':'not responding',b.online?'ok':'err');
+    set('req',`${b.requests} / ${b.replies}`);set('to',`${b.timeouts} / ${b.failures}`,b.failures?'warn':'');
+    set('echo',b.echo_frames,b.requests&&!b.echo_frames?'err':'');
+    set('rx',`${b.rx_bytes} / ${b.idle_bytes}`,b.idle_bytes?'warn':'');
+    set('crc',`${b.crc_errors} / ${b.framing_errors}`,b.crc_errors||b.framing_errors?'warn':'');
+    set('lat',b.replies?b.last_reply_ms+' ms':'-');
+    set('lvl',b.rx_high_pct<0?'simulated':b.rx_high_pct===100?'high (bus present)':b.rx_high_pct===0?'low (no bus voltage?)':b.rx_high_pct+' % high (traffic)',
+        b.rx_high_pct===0?'err':'');
+    $('att').textContent=(b.attempts||'').split(' || ').filter(x=>x).join('\n')||'-';
+    set('fw',d.fw||'-');set('hw',d.hw||'-');
+    set('reset',REASONS[c.reset_reason]||c.reset_reason,c.reset_reason==='panic'||/wdt|brownout/.test(c.reset_reason)?'err':'');
+    set('up',dur(c.uptime_s));
+    set('heap',`${kb(c.heap_free)} / ${kb(c.heap_min)}`,c.heap_min<20480?'warn':'');
+    set('largest',kb(c.heap_largest));set('psram',kb(c.psram_free));
+    set('wifi',d.ip?`${d.ssid} · ${d.ip} · ${d.rssi} dBm`:'-',d.rssi&&d.rssi<-75?'warn':'');
+    set('ha',{connected:'Connected',connecting:'Connecting...',off:'Not set up'}[c.ha]||'-',c.ha==='connecting'?'warn':'');
+    if(c.pc){$('crashbox').style.display='';$('crash').textContent=`task ${c.task}\npc ${c.pc}${c.ra?'  ra '+c.ra:''}\ncause ${c.cause}  addr ${c.addr}\nelf ${c.elf_sha}\ncode ${c.stack_code||''}`;}
+  }catch(e){set('sub','Controller not reachable','err');}
+}
+$('txtest').onclick=async()=>{
+  const btn=$('txtest');btn.disabled=true;set('txres','Testing...');
+  try{
+    const r=await (await fetch('/api/bus/txtest',{method:'POST'})).json();
+    if(r.rx_high_pct_tx_on<0)set('txres','Simulated unit: nothing to test.');
+    else if(r.rx_high_pct_idle===0)set('txres','No bus voltage on RX: check the BUS wire, the 15k/4.7k divider and GND.','err');
+    else if(r.rx_high_pct_tx_on===0)set('txres','Wiring OK: TX pulls the bus low and RX hears it.','ok');
+    else set('txres',`TX does not pull the bus low (RX still ${r.rx_high_pct_tx_on} % high): check IO2, the base resistor and the transistor's pins.`,'err');
+  }catch(e){set('txres','Controller not reachable','err');}
+  btn.disabled=false;
+};
+$('loadtrace').onclick=async()=>{
+  const p=$('trace');p.style.display='';p.textContent='Loading...';
+  try{p.textContent=await (await fetch('/api/bus/trace',{cache:'no-store'})).text();}catch(e){p.textContent='Controller not reachable';}
+  $('loadtrace').textContent='Refresh trace';
+};
+poll();setInterval(poll,3000);
+</script>
+</body>
+</html>

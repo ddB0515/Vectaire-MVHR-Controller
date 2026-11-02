@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vectaire Home Assistant</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--text:#1d2730;--muted:#62707c;--accent:#1f6fb2;--ok:#1e8a4c;--err:#c0392b;--line:#dde3e8}
+@media (prefers-color-scheme:dark){:root{--bg:#11181f;--card:#1a232c;--text:#e4eaef;--muted:#93a1ad;--accent:#5aa9e6;--ok:#4cc38a;--err:#ff7b6b;--line:#2b3640}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:460px;margin:0 auto;padding:16px}
+h1{font-size:1.35rem;margin:8px 0 4px}p.sub{color:var(--muted);margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+label{display:block;font-size:.85rem;color:var(--muted);margin:10px 0 4px}
+input{width:100%;padding:10px 12px;font-size:1rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+.row{display:flex;gap:8px}.row>*{flex:1}.row>.port{flex:0 0 96px}
+button{width:100%;padding:12px;font-size:1rem;font-weight:600;border:0;border-radius:8px;background:var(--accent);color:#fff;margin-top:14px}
+.meta{color:var(--muted);font-size:.85rem}
+#msg{font-weight:600;margin-top:10px}.ok{color:var(--ok)}.err{color:var(--err)}
+.hidden{display:none}
+a{color:var(--accent)}
+.pwwrap{position:relative;display:block}.pwwrap input{padding-right:64px}
+.pwwrap button.pwt{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:auto;margin:0;padding:6px 10px;font-size:.8rem;font-weight:600;background:none;border:0;color:var(--accent);cursor:pointer}
+</style>
+</head>
+<body>
+<main>
+<h1>Home Assistant</h1>
+<p class="sub">Connect the controller to your MQTT broker. Home Assistant finds it by itself (MQTT discovery). · <a href="/">Back</a></p>
+
+<div class="card" id="unlock">
+  <label for="pw">Device password</label>
+  <input id="pw" type="password" autocomplete="current-password">
+  <p class="meta">On the controller's screen under Menu › Device: tap the Firmware row. Without a screen: on the setup page (press the button for 1–4 s).</p>
+  <p class="meta">Unlocking here or on the home page unlocks both, for this browser tab only.</p>
+  <button id="go">Unlock</button>
+  <div id="msg1"></div>
+</div>
+
+<div class="card hidden" id="form">
+  <div class="row">
+    <div><label for="host">Broker address</label><input id="host" placeholder="homeassistant.local" autocapitalize="off"></div>
+    <div class="port"><label for="port">Port</label><input id="port" type="number" value="1883"></div>
+  </div>
+  <label for="user">User name</label>
+  <input id="user" autocomplete="off" autocapitalize="off">
+  <label for="pass">Password</label>
+  <input id="pass" type="password" autocomplete="new-password" placeholder="leave empty to keep the saved one">
+  <label for="name">Name in Home Assistant</label>
+  <input id="name">
+  <label for="interval">Update every (5–3600 s)</label>
+  <input id="interval" type="number" min="5" max="3600" value="30">
+  <p class="meta">How often temperatures, humidity and fan levels are sent. Changes such as fan speed, modes, boost or alarms are sent at once.</p>
+  <p class="meta">Leave the broker address empty to switch Home Assistant off. The controller restarts after saving.</p>
+  <button id="save">Save and restart</button>
+  <div id="msg"></div>
+</div>
+</main>
+<script>
+/* every password field gets a Show/Hide toggle */
+document.querySelectorAll('input[type=password]').forEach(i=>{
+  const w=document.createElement('span'),b=document.createElement('button');
+  w.className='pwwrap';i.parentNode.insertBefore(w,i);w.appendChild(i);
+  b.type='button';b.className='pwt';b.textContent='Show';b.setAttribute('aria-label','Show password');
+  b.onclick=()=>{const show=i.type==='password';i.type=show?'text':'password';b.textContent=show?'Hide':'Show';
+    b.setAttribute('aria-label',(show?'Hide':'Show')+' password');i.focus();};
+  w.appendChild(b);
+});
+const $=id=>document.getElementById(id);
+/* the home page keeps the device password in sessionStorage 'vpw' (this tab only); both pages share it */
+let pw=sessionStorage.getItem('vpw')||'';
+function hdr(){return {'X-OTA-Password':pw,'Content-Type':'application/json'};}
+function show(el,cls,text){el.className=cls;el.textContent=text;}
+async function unlock(){
+  try{
+    const r=await fetch('/api/mqtt',{headers:hdr()});
+    if(r.status==401){sessionStorage.removeItem('vpw');pw='';show($('msg1'),'err',$('pw').value?'Wrong password':'');return;}
+    const c=await r.json();
+    sessionStorage.setItem('vpw',pw);$('pw').value='';
+    $('host').value=c.host||'';$('port').value=c.port||1883;$('user').value=c.user||'';$('name').value=c.name||'';
+    $('interval').value=c.interval||30;
+    $('unlock').classList.add('hidden');$('form').classList.remove('hidden');
+  }catch(e){show($('msg1'),'err','Controller not reachable');}
+}
+$('go').onclick=()=>{pw=$('pw').value;unlock();};
+if(pw)unlock();
+$('save').onclick=async()=>{
+  const body={host:$('host').value.trim(),port:parseInt($('port').value)||1883,user:$('user').value.trim(),
+    pass:$('pass').value,name:$('name').value.trim(),interval:parseInt($('interval').value)||30};
+  if(body.interval<5||body.interval>3600){show($('msg'),'err','Update interval must be 5–3600 s');return;}
+  try{
+    const r=await fetch('/api/mqtt',{method:'POST',headers:hdr(),body:JSON.stringify(body)});
+    if(!r.ok){show($('msg'),'err',await r.text());return;}
+    show($('msg'),'ok','Saved. The controller restarts and connects in about 20 seconds.');
+  }catch(e){show($('msg'),'err','Controller not reachable');}
+};
+</script>
+</body>
+</html>
