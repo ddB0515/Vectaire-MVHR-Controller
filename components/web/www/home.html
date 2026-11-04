@@ -182,7 +182,7 @@ function render(s){
   $('rh').textContent=rhText(s.rh);
   $('rhnote').textContent=s.rh!=null&&(s.rh<35||s.rh>99)?`reads ${Math.round(s.rh)} %, shown only within 35–99 %`:'';
   $('fanbig').textContent=s.fan??'--';
-  $('fanduty').textContent=s.fan_a!=null?`intake ${s.fan_a} % · exhaust ${s.fan_b} %`:'';
+  $('fanduty').textContent=s.fan_a!=null?`Intake ${s.fan_a} % · Exhaust ${s.fan_b} %`:'';
   const bo=$('boost');bo.textContent=s.boost||'-';bo.className=s.boost&&s.boost!=='Off'?'on':'';
   setSeg('fan',s.fan);setSeg('bypass',s.bypass);setSeg('holiday',s.holiday);
   $('bypassnow').textContent=s.bypass==='auto'?(s.airflow?'(now '+s.airflow.toLowerCase()+')':''):'';

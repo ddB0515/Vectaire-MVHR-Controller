@@ -42,15 +42,15 @@ typedef struct {
 #define DEG_C "\xc2\xb0" "C"
 
 static const entity_t s_entities[] = {
-    {.kind = E_SENSOR, .obj = "t_in", .name = "Inside temperature", .device_class = "temperature", .unit = DEG_C,
+    {.kind = E_SENSOR, .obj = "t_in", .name = "Indoor temperature", .device_class = "temperature", .unit = DEG_C,
      .state_class = SC_MEASUREMENT},
-    {.kind = E_SENSOR, .obj = "t_out", .name = "Outside temperature", .device_class = "temperature", .unit = DEG_C,
+    {.kind = E_SENSOR, .obj = "t_out", .name = "Outdoor temperature", .device_class = "temperature", .unit = DEG_C,
      .state_class = SC_MEASUREMENT},
     {.kind = E_SENSOR, .obj = "humidity", .name = "Indoor humidity", .device_class = "humidity", .unit = "%",
      .state_class = SC_MEASUREMENT},
-    {.kind = E_SENSOR, .obj = "fan_intake", .name = "Intake fan", .unit = "%", .icon = "mdi:fan",
+    {.kind = E_SENSOR, .obj = "fan_intake", .name = "Intake fan speed", .unit = "%", .icon = "mdi:fan",
      .state_class = SC_MEASUREMENT},
-    {.kind = E_SENSOR, .obj = "fan_exhaust", .name = "Exhaust fan", .unit = "%", .icon = "mdi:fan",
+    {.kind = E_SENSOR, .obj = "fan_exhaust", .name = "Exhaust fan speed", .unit = "%", .icon = "mdi:fan",
      .state_class = SC_MEASUREMENT},
     {.kind = E_SELECT, .obj = "fan", .name = "Fan speed", .icon = "mdi:fan", .options = "1|2|3"},
     {.kind = E_SELECT, .obj = "bypass", .name = "Bypass", .icon = "mdi:swap-horizontal",
