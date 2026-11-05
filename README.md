@@ -634,14 +634,14 @@ The other headless chips (C3, S3, C5, C6) are built locally with `tools/idf.sh -
 **Making a release:**
 
 1. Raise `PROJECT_VER` in `CMakeLists.txt` (e.g. `0.9.1`) and commit.
-2. Tag that commit with the same version and push the tag:
+2. Tag that commit with the same version (plain `x.y.z`, no `v` prefix) and push the tag:
 
    ```bash
-   git tag v0.9.1
-   git push origin v0.9.1
+   git tag 0.9.1
+   git push origin 0.9.1
    ```
 
-3. The workflow builds both variants and publishes a GitHub Release `v0.9.1` with these files:
+3. The workflow builds both variants and publishes a GitHub Release `0.9.1` with these files:
 
    | File | Use |
    |---|---|
