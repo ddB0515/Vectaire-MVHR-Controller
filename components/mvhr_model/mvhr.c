@@ -34,9 +34,13 @@ static const char *TAG = "mvhr";
 typedef struct {
     uint8_t cmd;
     uint8_t len;
-    uint8_t data[12];
+    uint8_t data[16];
     uint32_t refresh;       /* groups to re-read afterwards */
+    bool fan_patch;         /* data = mask + six big-endian PWM values: change the fan bytes of the config block */
 } mvhr_cmd_t;
+
+#define CFG_LEN         49
+#define CFG_FAN_AT      8       /* six u16: intake speeds 1..3, exhaust speeds 1..3 */
 
 static mvhr_state_t s_state;
 static SemaphoreHandle_t s_lock;
@@ -80,11 +84,24 @@ esp_err_t mvhr_add_listener(mvhr_listener_t cb, void *arg)
     return ESP_ERR_NO_MEM;
 }
 
+static volatile int16_t s_outdoor_offset_x10;
+
+esp_err_t mvhr_set_outdoor_offset(int16_t x10)
+{
+    ESP_RETURN_ON_FALSE(x10 >= -MVHR_OUTDOOR_OFFSET_MAX_X10 && x10 <= MVHR_OUTDOOR_OFFSET_MAX_X10, ESP_ERR_INVALID_ARG,
+                        TAG, "offset -10.0..+10.0");
+    s_outdoor_offset_x10 = x10;
+    return ESP_OK;
+}
+
 void mvhr_get_state(mvhr_state_t *out)
 {
     xSemaphoreTake(s_lock, portMAX_DELAY);
     *out = s_state;
     xSemaphoreGive(s_lock);
+    out->temp_supply_raw_x10 = out->temp_supply_x10;
+    out->outdoor_offset_x10 = s_outdoor_offset_x10;
+    out->temp_supply_x10 = (int16_t)(out->temp_supply_x10 + s_outdoor_offset_x10);
 }
 
 /* Run one transaction and fold the reply into the state. Returns the changed groups. */
@@ -131,8 +148,52 @@ static void log_status(void)
              s.bypass_locked ? " locked" : "", s.holiday, s.frost);
 }
 
+/* Fan duty change: fresh read of the config block, patch only the chosen fan bytes, write it back, read it again. */
+static void write_fan_config(const mvhr_cmd_t *c, uint32_t *changed)
+{
+    bool ok;
+    *changed |= exchange(MVHR_CMD_CONFIG_READ, NULL, 0, &ok);
+    uint8_t block[CFG_LEN];
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    bool valid = ok && s_state.cfg_len >= CFG_LEN && s_state.cfg[0] == CFG_LEN;
+    if (valid) {
+        memcpy(block, s_state.cfg, CFG_LEN);
+    }
+    xSemaphoreGive(s_lock);
+    if (!valid) {
+        ESP_LOGW(TAG, "fan duty change dropped: could not read a %d-byte config block", CFG_LEN);
+        return;
+    }
+    uint8_t mask = c->data[0];
+    for (int i = 0; i < 6; i++) {
+        if (mask & (1u << i)) {
+            memcpy(&block[CFG_FAN_AT + 2 * i], &c->data[1 + 2 * i], 2);
+        }
+    }
+    int acked = 0;
+    for (int i = 0; i < WRITE_REPEATS; i++) {
+        exchange(MVHR_CMD_CONFIG_WRITE, block, CFG_LEN, &ok);
+        acked += ok;
+    }
+    *changed |= exchange(MVHR_CMD_CONFIG_READ, NULL, 0, &ok);
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    bool applied = ok && s_state.cfg_len >= CFG_LEN;
+    for (int i = 0; applied && i < 6; i++) {
+        if ((mask & (1u << i)) && memcmp(&s_state.cfg[CFG_FAN_AT + 2 * i], &block[CFG_FAN_AT + 2 * i], 2)) {
+            applied = false;
+        }
+    }
+    xSemaphoreGive(s_lock);
+    ESP_LOGI(TAG, "fan duties (mask %02x): %d/%d acknowledged, unit %s", mask, acked, WRITE_REPEATS,
+             applied ? "now reports the new values" : "does NOT report the new values");
+}
+
 static void run_command(const mvhr_cmd_t *c, uint32_t *changed)
 {
+    if (c->fan_patch) {
+        write_fan_config(c, changed);
+        return;
+    }
     int acked = 0;
     for (int i = 0; i < WRITE_REPEATS; i++) {
         bool ok;
@@ -332,6 +393,29 @@ esp_err_t mvhr_set_humidity_setpoint(uint8_t pct)
 {
     ESP_RETURN_ON_FALSE(pct >= 35 && pct <= 99, ESP_ERR_INVALID_ARG, TAG, "35..99 %");
     return write_u16(MVHR_CMD_HUMID_WRITE, pct);
+}
+
+esp_err_t mvhr_set_fan_duties(const uint16_t pct_x10[6], uint8_t mask)
+{
+    ESP_RETURN_ON_FALSE(mask && !(mask & ~0x3F), ESP_ERR_INVALID_ARG, TAG, "mask");
+    mvhr_cmd_t c = {.cmd = MVHR_CMD_CONFIG_WRITE, .len = 13, .fan_patch = true};
+    c.data[0] = mask;
+    for (int i = 0; i < 6; i++) {
+        if (mask & (1u << i)) {
+            ESP_RETURN_ON_FALSE(pct_x10[i] >= MVHR_FAN_DUTY_MIN_X10 && pct_x10[i] <= MVHR_FAN_DUTY_MAX_X10,
+                                ESP_ERR_INVALID_ARG, TAG, "fan duty 10.0..100.0 %%");
+            uint16_t raw = (uint16_t)(((uint32_t)pct_x10[i] * 4096U + 500U) / 1000U);   /* % x 4096 / 1000 */
+            c.data[1 + 2 * i] = raw >> 8;
+            c.data[2 + 2 * i] = raw & 0xFF;
+        }
+    }
+    if (xQueueSend(s_cmds, &c, 0) != pdTRUE) {
+        return ESP_ERR_NO_MEM;
+    }
+    if (s_task) {
+        xTaskNotifyGive(s_task);
+    }
+    return ESP_OK;
 }
 
 esp_err_t mvhr_set_night_inhibition(bool enabled, uint16_t start_min, uint16_t end_min)

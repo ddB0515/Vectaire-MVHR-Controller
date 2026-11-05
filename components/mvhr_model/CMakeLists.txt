@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "mvhr_sim.c" "mvhr.c" "mvhr_decode.c"
+    SRCS "mvhr_sim.c" "mvhr.c" "mvhr_decode.c" "dst.c" "timesync.c" "timezones.c"
     INCLUDE_DIRS "include"
     PRIV_INCLUDE_DIRS "."
     PRIV_REQUIRES vectaire_bus esp_timer log

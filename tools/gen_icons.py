@@ -22,9 +22,16 @@ ICONS = {
                 'c1.8.4 1.8 2.9 0 3.4a1.7 1.7 0 0 0-1 2.6c.9 1.5-.9 3.3-2.4 2.4a1.7 1.7 0 0 0-2.6 1c-.4 1.8-2.9 1.8-3.4 0'
                 'a1.7 1.7 0 0 0-2.5-1c-1.6.9-3.3-.9-2.4-2.4a1.7 1.7 0 0 0-1.1-2.6c-1.8-.4-1.8-2.9 0-3.4a1.7 1.7 0 0 0 1.1-2.5'
                 'c-.9-1.6.8-3.3 2.4-2.4 1 .6 2.3.1 2.5-1.1z"/><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"/>',
+    'thermo': '<path d="M10 13.5a4 4 0 1 0 4 0v-8.5a2 2 0 0 0 -4 0v8.5"/><path d="M10 9h4"/>',
     'droplet': '<path d="M7.5 7.5l4.5-4.5l4.5 4.5a6.4 6.4 0 1 1 -9 0z"/>',
-    'fan': '<path d="M12 12c-1.5-3.5-.5-7 3-8c1.5 3 .5 6.5-3 8"/><path d="M12 12c3.5 1.5 7 .5 8-3c-3-1.5-6.5-.5-8 3"/>'
-           '<path d="M12 12c1.5 3.5 .5 7-3 8c-1.5-3-.5-6.5 3-8"/><path d="M12 12c-3.5-1.5-7-.5-8 3c3 1.5 6.5 .5 8-3"/>',
+    'fan': '<g fill="#000" stroke="none"><path d="M10.6 10.4C9.2 8.6 9.6 5.6 11.4 3.6C13 1.8 16.4 1.8 17 4C17.5 6.2 15 7.6 13.4 10.2z"/><path d="M10.6 10.4C9.2 8.6 9.6 5.6 11.4 3.6C13 1.8 16.4 1.8 17 4C17.5 6.2 15 7.6 13.4 10.2z" transform="rotate(90 12 12)"/><path d="M10.6 10.4C9.2 8.6 9.6 5.6 11.4 3.6C13 1.8 16.4 1.8 17 4C17.5 6.2 15 7.6 13.4 10.2z" transform="rotate(180 12 12)"/><path d="M10.6 10.4C9.2 8.6 9.6 5.6 11.4 3.6C13 1.8 16.4 1.8 17 4C17.5 6.2 15 7.6 13.4 10.2z" transform="rotate(270 12 12)"/><path fill-rule="evenodd" d="M12 9.3a2.7 2.7 0 1 0 0 5.4a2.7 2.7 0 1 0 0-5.4zM12 10.85a1.15 1.15 0 1 0 0 2.3a1.15 1.15 0 1 0 0-2.3z"/></g>',  # solid propeller, the only filled icon
+    # Home Assistant logo as two layers: ha_house (blue) with ha_glyph (light) on top
+    'ha_house': '<path fill="#000" stroke="none" d="M10.9 2.2Q12 1.2 13.1 2.2L22.2 11.2Q23.4 12.5 23.4 14.2L23.4 21Q23.4 22.6 21.8 22.6L2.2 22.6Q.6 22.6 .6 21L.6 14.2Q.6 12.5 1.8 11.2Z"/>',
+    'ha_glyph': '<g fill="#000" stroke="#000" stroke-width="1.7" stroke-linecap="butt"><path d="M12 8.3V22.6"/><path d="M12.4 19.6L17.7 14.3"/><path d="M11.3 22.6L6.2 17.5"/><circle cx="12" cy="8.3" r="2" stroke="none"/><circle cx="17.7" cy="14.3" r="2" stroke="none"/><circle cx="6.2" cy="17.5" r="2" stroke="none"/></g>',
+    # airflow modes, shown above the mode name on the home screen
+    'flow_hr': '<path d="M18.45 7.97A7.6 7.6 0 0 0 9.40 4.86"/><path fill="#000" d="M5.64 6.23L8.20 1.57L10.60 8.15z"/><path d="M5.29 8.43A7.6 7.6 0 0 0 7.11 17.82"/><path fill="#000" d="M10.18 20.39L4.87 20.50L9.36 15.14z"/><path d="M12.27 19.60A7.6 7.6 0 0 0 19.48 13.32"/><path fill="#000" d="M20.18 9.38L22.93 13.93L16.04 12.71z"/>',
+    'flow_bypass': '<path d="M4 8h16"/><path d="M16 4l4 4l-4 4"/><path d="M20 16H4"/><path d="M8 12l-4 4l4 4"/>',
+    'flow_off': '<path d="M4 12h16"/><path d="M14 6l6 6l-6 6"/>',
     'exchange': '<path d="M3 9h16l-3-3"/><path d="M21 15H5l3 3"/>',
     'holiday': '<path d="M3 12a9 9 0 0 1 18 0z"/><path d="M12 12v6a2 2 0 0 0 4 0"/><path d="M12 3v1"/>',
     'moon': '<path d="M12 3a6 6 0 0 0 9 9a9 9 0 1 1 -9 -9z"/>',
@@ -55,7 +62,7 @@ ICONS = {
 
 # (icon, pixel size) pairs the UI uses
 SIZES = [
-    ('wifi', 18), ('wifi_off', 18), ('settings', 22), ('droplet', 14), ('fan', 26), ('exchange', 24),
+    ('wifi', 18), ('wifi_off', 18), ('settings', 22), ('droplet', 14), ('droplet', 16), ('thermo', 16), ('fan', 26), ('exchange', 24), ('flow_hr', 28), ('flow_bypass', 28), ('flow_off', 28), ('ha_house', 18), ('ha_glyph', 18),
     ('holiday', 28), ('moon', 28), ('droplet', 28), ('hourglass', 28), ('exchange', 28), ('clock', 28),
     ('filter', 28), ('device', 28),
     ('tool', 32), ('alert', 32), ('failure', 32), ('alert', 16), ('bell', 64),

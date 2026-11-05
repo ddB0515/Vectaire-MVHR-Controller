@@ -137,7 +137,7 @@ const char *mvhr_function_text(const mvhr_state_t *st)
     case MVHR_FUNC_SWITCH_DELAY:
         return "Boost starting";
     case MVHR_FUNC_SWITCH_BOOST:
-        return "Switch boost";
+        return "Boost";
     case MVHR_FUNC_OVERRUN:
         return "Overrun";
     case MVHR_FUNC_BOOST:
@@ -182,11 +182,16 @@ const char *mvhr_boost_text(const mvhr_state_t *st)
 }
 
 /* What the air does now: the override if one is set, otherwise the unit's own choice */
+int mvhr_airflow_mode(const mvhr_state_t *st)
+{
+    int mode = st->bypass_override >= 0 && st->bypass_override <= 2 ? st->bypass_override : st->bypass_auto_state;
+    return mode <= 2 ? mode : 0;
+}
+
 const char *mvhr_airflow_text(const mvhr_state_t *st)
 {
     static const char *const names[] = {"Heat recovery", "Bypass", "Intake motor off"};
-    int mode = st->bypass_override >= 0 && st->bypass_override <= 2 ? st->bypass_override : st->bypass_auto_state;
-    return mode <= 2 ? names[mode] : "Heat recovery";
+    return names[mvhr_airflow_mode(st)];
 }
 
 /* most important first, same order as the panel's alarm sequencer */

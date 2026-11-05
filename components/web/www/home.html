@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Vectaire MVHR</title>
 <style>
-:root{--bg:#f4f6f8;--card:#fff;--text:#1d2730;--muted:#62707c;--accent:#1f6fb2;--ok:#1e8a4c;--err:#c0392b;--warn:#9a4a00;--warnbg:#fff1dc;--line:#dde3e8}
-@media (prefers-color-scheme:dark){:root{--bg:#11181f;--card:#1a232c;--text:#e4eaef;--muted:#93a1ad;--accent:#5aa9e6;--ok:#4cc38a;--err:#ff7b6b;--warn:#ffb35c;--warnbg:#3a2a14;--line:#2b3640}}
+:root{--bg:#f4f6f8;--card:#fff;--text:#1d2730;--muted:#62707c;--accent:#1f6fb2;--hot:#d2552b;--house:#9aa7b1;--ok:#1e8a4c;--err:#c0392b;--warn:#9a4a00;--warnbg:#fff1dc;--line:#dde3e8}
+@media (prefers-color-scheme:dark){:root{--bg:#11181f;--card:#1a232c;--text:#e4eaef;--muted:#93a1ad;--accent:#5aa9e6;--hot:#f07a50;--house:#5a6a77;--ok:#4cc38a;--err:#ff7b6b;--warn:#ffb35c;--warnbg:#3a2a14;--line:#2b3640}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 main{max-width:460px;margin:0 auto;padding:16px}
 h1{font-size:1.35rem;margin:8px 0 4px}p.sub{color:var(--muted);margin:0 0 16px}
@@ -45,6 +45,33 @@ ul.nets li{display:flex;justify-content:space-between;padding:9px 4px;border-bot
 ul.nets li.sel{background:var(--bg)}
 .pwwrap{position:relative;display:block}.pwwrap input{padding-right:64px}
 .pwwrap button.pwt{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:auto;margin:0;padding:6px 10px;font-size:.8rem;font-weight:600;background:none;border:0;color:var(--accent);cursor:pointer}
+/* overview: the controller screen's home page, scaled to the card (1 unit = 1 screen pixel on a 320 px wide screen) */
+.ov{container-type:inline-size;position:relative;width:100%;aspect-ratio:320/140}
+.ovi{--u:calc(100cqw/320);position:absolute;inset:0;line-height:1.15}
+.ovi>*{position:absolute}
+.ovi svg{display:block}
+.ov .roof{left:0;top:0;width:100%;height:100%;fill:none;stroke:var(--house);stroke-width:5;stroke-linecap:round;stroke-linejoin:round}
+.ov .fan{top:calc(6*var(--u));width:calc(90*var(--u))}
+.ov .fan small{display:block;font-size:calc(12*var(--u));color:var(--muted)}
+.ov .fan b{display:block;font-size:calc(14*var(--u));font-weight:600}
+.ov .mode{left:calc(32*var(--u));top:calc(48*var(--u));width:calc(140*var(--u));text-align:center;display:flex;flex-direction:column;align-items:center;gap:calc(1*var(--u))}
+.ov .mode svg{width:calc(28*var(--u));height:calc(28*var(--u));fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ov .mode svg [fill]{fill:currentColor;stroke:none}
+.ov .mode span{font-size:calc(14*var(--u));font-weight:600}
+.ov .inrow{left:calc(32*var(--u));top:calc(104*var(--u));width:calc(140*var(--u));display:flex;justify-content:center;align-items:center;gap:calc(8*var(--u));font-size:calc(16*var(--u))}
+.ov .inrow .g{display:flex;align-items:center;gap:calc(2*var(--u))}
+.ov .inrow svg{width:calc(16*var(--u));height:calc(16*var(--u));fill:none;stroke:var(--accent);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.ov .inrow small{font-size:calc(9*var(--u))}
+.ov .outd{left:calc(200*var(--u));top:calc(23*var(--u));width:calc(118*var(--u));height:calc(90*var(--u));padding-left:calc(8*var(--u));border-left:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:calc(3*var(--u))}
+.ov .outd .k{font-size:calc(10*var(--u));color:var(--muted);letter-spacing:.02em}
+.ov .outd .t{font-size:calc(22*var(--u));line-height:1.2}
+.ov .outd .t small{font-size:calc(12*var(--u))}
+.ov .pill{width:100%;height:calc(46*var(--u));border-radius:calc(8*var(--u));background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;text-align:center;font-size:calc(14*var(--u));line-height:1.2;text-transform:uppercase;padding:0 calc(5*var(--u))}
+.ov .pill{margin-top:calc(9*var(--u))}
+.ov .pill.hidden{display:none}
+.fs{width:100%;border-collapse:collapse;margin-bottom:8px}.fs th{font-size:12px;font-weight:400;color:var(--muted);text-align:right;padding:2px 0}
+.fs input{display:block;margin-left:auto;width:6.4em;text-align:right;padding:6px 8px}.fs th,.fs td:first-child{white-space:nowrap}.fs th{padding-left:10px}.fs td:first-child{padding-right:10px}
+.fs td{padding:5px 0;text-align:right;border-top:1px solid var(--line)}.fs td:first-child{text-align:left}.fs tr.cur td{color:var(--accent);font-weight:600}
 </style>
 </head>
 <body>
@@ -55,13 +82,19 @@ ul.nets li.sel{background:var(--bg)}
 <div id="banner" class="banner hidden"></div>
 
 <div class="card">
-  <h2>Climate</h2>
-  <div class="climate">
-    <div><div class="k">INSIDE</div><div class="t" id="tin">--</div></div>
-    <div><div class="k">OUTSIDE</div><div class="t" id="tout">--</div></div>
-    <div><div class="k">INDOOR HUMIDITY</div><div class="t" id="rh">--</div><div class="h" id="rhnote"></div></div>
-    <div><div class="k">FAN SPEED</div><div class="t" id="fanbig">--</div><div class="h" id="fanduty"></div></div>
-  </div>
+  <h2>Overview</h2>
+  <div class="ov"><div class="ovi">
+    <svg class="roof" viewBox="0 0 320 140" preserveAspectRatio="none"><polyline points="12,63 102,21 192,63"/><polyline points="32,54 32,127 172,127 172,54"/></svg>
+    <div class="fan" id="fanin" style="left:calc(8*var(--u))"><small>Intake fan:</small><b>--</b></div>
+    <div class="fan" id="fanout" style="left:calc(102*var(--u));text-align:right"><small>Exhaust fan:</small><b>--</b></div>
+    <div class="mode" id="mode"><svg viewBox="0 0 24 24"></svg><span>--</span></div>
+    <div class="inrow">
+      <div class="g"><svg viewBox="0 0 24 24"><path d="M10 13.5a4 4 0 1 0 4 0v-8.5a2 2 0 0 0 -4 0v8.5"/><path d="M10 9h4"/></svg><span id="tin">--</span></div>
+      <div class="g"><svg viewBox="0 0 24 24"><path d="M7.5 7.5l4.5-4.5l4.5 4.5a6.4 6.4 0 1 1 -9 0z"/></svg><span id="rh">--</span></div>
+    </div>
+    <div class="outd"><div class="k">OUTDOOR TEMP</div><div class="t" id="tout">--</div><div class="pill hidden" id="pill"></div></div>
+  </div></div>
+  <div class="h meta" id="rhnote"></div>
 </div>
 
 <div class="card">
@@ -70,9 +103,9 @@ ul.nets li.sel{background:var(--bg)}
   <label>Fan speed</label>
   <div class="seg" id="fan"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button></div>
   <div class="state"><span>Boost</span><b id="boost">-</b></div>
-  <label>Bypass <span id="bypassnow"></span></label>
+  <label>Mode <span id="bypassnow"></span></label>
   <div class="seg" id="bypass"><button data-v="auto">Auto</button><button data-v="heat">Heat recovery</button><button data-v="bypass">Bypass</button></div>
-  <label>Holiday mode</label>
+  <label>Holiday mode <span class="meta">(reduces the fan by 50%)</span></label>
   <div class="seg" id="holiday"><button data-v="false">Off</button><button data-v="true">On</button></div>
 </div>
 
@@ -81,6 +114,8 @@ ul.nets li.sel{background:var(--bg)}
   <div class="row"><div><label for="rhset">Humidity boost above (35–99 %)</label><input id="rhset" type="number" min="35" max="99"></div><button data-save="rhset">Save</button></div>
   <div class="row"><div><label for="bdelay">Boost delay (0–300 s)</label><input id="bdelay" type="number" min="0" max="300" step="5"></div><button data-save="bdelay">Save</button></div>
   <div class="row"><div><label for="overrun">Overrun (0–90 min)</label><input id="overrun" type="number" min="0" max="90"></div><button data-save="overrun">Save</button></div>
+  <div class="row"><div><label for="outoff">Outdoor temperature offset (−10 to +10 °C)</label><input id="outoff" type="number" min="-10" max="10" step="0.1"></div><button data-save="outoff">Save</button></div>
+  <p class="meta">Added to the outdoor temperature shown here, on the screen and sent to Home Assistant. It does not change what the unit itself uses.</p>
   <div id="nightbox">
     <label>Night mode (no boost between)</label>
     <div class="row">
@@ -89,6 +124,19 @@ ul.nets li.sel{background:var(--bg)}
     <div class="seg" style="margin-top:8px" id="night"><button data-v="false">Off</button><button data-v="true">On</button></div>
     <button class="ghost" data-save="nighttimes">Save night times</button>
   </div>
+</div>
+
+<div class="card hidden" id="fanscard">
+  <h2>Fan speed settings</h2>
+  <table class="fs"><thead><tr><th></th><th>Intake fan (%)</th><th>Exhaust fan (%)</th></tr></thead><tbody>
+    <tr id="fs1"><td>Speed 1</td><td><input id="fi1" type="text" inputmode="decimal" autocomplete="off"></td><td><input id="fo1" type="text" inputmode="decimal" autocomplete="off"></td></tr>
+    <tr id="fs2"><td>Speed 2</td><td><input id="fi2" type="text" inputmode="decimal" autocomplete="off"></td><td><input id="fo2" type="text" inputmode="decimal" autocomplete="off"></td></tr>
+    <tr id="fs3"><td>Speed 3</td><td><input id="fi3" type="text" inputmode="decimal" autocomplete="off"></td><td><input id="fo3" type="text" inputmode="decimal" autocomplete="off"></td></tr>
+  </tbody></table>
+  <button data-save="fans">Save fan speeds</button>
+  <div class="kv" style="margin-top:10px"><span>Frost stall speed</span><span id="fsstall">-</span></div>
+  <div class="kv"><span>Holiday reduction</span><span id="fshol">-</span></div>
+  <p class="meta err">Installer settings, in % of full fan speed (10–100). Changing them alters how much air each speed moves, and it will affect the air balance flow. Be careful when setting these, as they were set when the unit was commissioned.</p>
 </div>
 
 <div class="card">
@@ -102,6 +150,14 @@ ul.nets li.sel{background:var(--bg)}
     <div class="kv"><span>Unit clock</span><span id="clock">-</span></div>
   </div>
   <button class="ghost" id="setclock">Set unit clock to this device's time</button>
+  <div style="margin-top:14px">
+    <label style="margin-top:12px">Network time</label>
+    <div class="seg" id="ntpmode"><button data-v="false">Off</button><button data-v="true">On</button></div>
+    <label for="zone" style="margin-top:8px">Time zone (standard time plus the local summer time rule)</label>
+    <select id="zone" style="width:100%;padding:10px 12px;font-size:1rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)"></select>
+    <p class="meta" id="ntptext"></p>
+    <button class="ghost" id="ntpnow" style="margin-bottom:8px">Check network time now</button>
+  </div>
 </div>
 
 <div class="card">
@@ -161,15 +217,18 @@ function hm(m){return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).
 function dur(s){const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return (d?d+' d ':'')+(d||h?h+' h ':'')+m+' min';}
 function setSeg(id,val){for(const b of $(id).children)b.classList.toggle('on',b.dataset.v===String(val));}
 function fill(id,val){const e=$(id);if(val==null||dirty[id]||document.activeElement===e)return;e.value=val;}
+function fillP(id,val){const e=$(id);if(val==null||dirty[id]||document.activeElement===e)return;e.value=Number(val).toFixed(1)+' %';}
 function locked(){return !pw;}
 function applyLock(){
   const on=!locked()&&S&&S.online;
-  document.querySelectorAll('.seg button,[data-save],#resetfilter,#setclock,#rhset,#bdelay,#overrun,#nstart,#nend').forEach(e=>e.disabled=!on);
+  document.querySelectorAll('.seg button,[data-save],#resetfilter,#setclock,#outoff,#zone,#ntpnow,#rhset,#bdelay,#overrun,#nstart,#nend,.fs input').forEach(e=>e.disabled=!on);
   $('wifiopen').disabled=locked();if(locked())$('wifibox').classList.add('hidden');
   $('lockform').classList.toggle('hidden',!locked());
   $('lockstate').textContent=locked()?'Locked':'Unlocked';
   $('lockhint').classList.toggle('hidden',!locked());
 }
+const FLOW={"Heat recovery": "<path d=\"M18.45 7.97A7.6 7.6 0 0 0 9.40 4.86\"/><path fill=\"#000\" d=\"M5.64 6.23L8.20 1.57L10.60 8.15z\"/><path d=\"M5.29 8.43A7.6 7.6 0 0 0 7.11 17.82\"/><path fill=\"#000\" d=\"M10.18 20.39L4.87 20.50L9.36 15.14z\"/><path d=\"M12.27 19.60A7.6 7.6 0 0 0 19.48 13.32\"/><path fill=\"#000\" d=\"M20.18 9.38L22.93 13.93L16.04 12.71z\"/>", "Bypass": "<path d=\"M4 8h16\"/><path d=\"M16 4l4 4l-4 4\"/><path d=\"M20 16H4\"/><path d=\"M8 12l-4 4l4 4\"/>", "Intake motor off": "<path d=\"M4 12h16\"/><path d=\"M14 6l6 6l-6 6\"/>"};
+const FLOWCOL={'Heat recovery':'var(--hot)','Bypass':'var(--accent)','Intake motor off':'var(--ok)'};
 function render(s){
   S=s;const d=s.device||{};
   $('name').textContent=d.name||'Vectaire MVHR';
@@ -178,15 +237,34 @@ function render(s){
   if(!s.online){b.className='banner off';b.textContent='The unit is not responding.';}
   else if(s.alarms){b.className='banner';b.textContent='⚠ '+s.alarm;}
   else b.className='banner hidden';
-  $('tin').textContent=deg(s.t_in);$('tout').textContent=deg(s.t_out);
+  $('tin').innerHTML=s.t_in==null?'--':s.t_in.toFixed(1)+'<small> °C</small>';
+  $('tout').innerHTML=s.t_out==null?'--':s.t_out.toFixed(1)+'<small> °C</small>';
   $('rh').textContent=rhText(s.rh);
+  $('fanin').lastChild.textContent=s.fan_a!=null?s.fan_a+'%':'--';$('fanout').lastChild.textContent=s.fan_b!=null?s.fan_b+'%':'--';
+  const m=$('mode'),af=s.airflow;m.style.color=af&&af!=='Intake motor off'?FLOWCOL[af]:'var(--muted)';
+  m.firstChild.innerHTML=af?FLOW[af]||'':'';m.firstChild.style.color=af?FLOWCOL[af]:'var(--muted)';m.lastChild.textContent=af||'--';
+  const fn=s.function,pl=$('pill');pl.textContent=fn==='Boost'?'Boost active':fn;pl.classList.toggle('hidden',!fn||fn==='Normal');
   $('rhnote').textContent=s.rh!=null&&(s.rh<35||s.rh>99)?`reads ${Math.round(s.rh)} %, shown only within 35–99 %`:'';
-  $('fanbig').textContent=s.fan??'--';
-  $('fanduty').textContent=s.fan_a!=null?`Intake ${s.fan_a} % · Exhaust ${s.fan_b} %`:'';
   const bo=$('boost');bo.textContent=s.boost||'-';bo.className=s.boost&&s.boost!=='Off'?'on':'';
   setSeg('fan',s.fan);setSeg('bypass',s.bypass);setSeg('holiday',s.holiday);
-  $('bypassnow').textContent=s.bypass==='auto'?(s.airflow?'(now '+s.airflow.toLowerCase()+')':''):'';
-  fill('rhset',s.rh_set);fill('bdelay',s.boost_delay);fill('overrun',s.overrun_min);
+  $('bypassnow').textContent=s.bypass==='auto'&&s.airflow?(s.airflow==='Intake motor off'?'(now intake motor off)':'(now in '+s.airflow.toLowerCase()+' mode)'):'';
+  fill('outoff',s.out_offset);fill('rhset',s.rh_set);fill('bdelay',s.boost_delay);fill('overrun',s.overrun_min);
+  $('fanscard').classList.toggle('hidden',!s.fans);
+  if(s.fans){
+    const p=v=>v.toFixed(1)+' %';
+    for(let i=0;i<3;i++){fillP('fi'+(i+1),s.fans.in[i]);fillP('fo'+(i+1),s.fans.out[i]);$('fs'+(i+1)).classList.toggle('cur',s.fan===i+1);}
+    $('fsstall').textContent=p(s.fans.stall);$('fshol').textContent=p(s.fans.holiday);
+  }
+  if(s.ntp){
+    setSeg('ntpmode',s.ntp.on);
+    if(document.activeElement!==$('zone')){
+      if(s.zones)buildZones(s.zones);
+      const cu=$('zonecustom');
+      if(s.ntp.zone<0){cu.textContent='Custom: UTC'+(s.ntp.tz>=0?'+':'')+s.ntp.tz+', rule '+s.ntp.rule;cu.hidden=false;$('zone').value='custom';}
+      else{cu.hidden=true;$('zone').value=String(s.ntp.zone);}
+    }
+    $('ntptext').textContent=s.ntp.text+' Needs Wi-Fi.';
+  }
   $('nightbox').classList.toggle('hidden',!s.night);
   if(s.night){setSeg('night',s.night.on);fill('nstart',hm(s.night.start));fill('nend',hm(s.night.end));}
   $('filter').textContent=s.filter!=null?s.filter+' %':'-';$('filterbar').style.width=(s.filter||0)+'%';
@@ -200,7 +278,14 @@ function render(s){
   $('mem').textContent=d.heap_free!=null?Math.round(d.heap_free/1024)+' KB (lowest '+Math.round(d.heap_min/1024)+' KB)':'-';
   applyLock();
 }
-async function poll(){try{const r=await fetch('/api/state',{cache:'no-store'});render(await r.json());}catch(e){$('sub').textContent='Controller not reachable';}}
+let zonesBuilt=false;
+function buildZones(list){
+  if(zonesBuilt)return;zonesBuilt=true;const z=$('zone');z.innerHTML='';
+  list.forEach((e,i)=>{const o=document.createElement('option');o.value=i;
+    const off=e[1]/10;o.textContent=`(UTC${off>=0?'+':'-'}${String(Math.floor(Math.abs(off))).padStart(2,'0')}:${Math.abs(off)%1?'30':'00'}) ${e[0]}${e[2]<4?'  (summer time)':''}`;z.appendChild(o);});
+  const c=document.createElement('option');c.id='zonecustom';c.value='custom';c.hidden=true;z.appendChild(c);
+}
+async function poll(){try{const r=await fetch(zonesBuilt?'/api/state':'/api/state?zones=1',{cache:'no-store'});render(await r.json());}catch(e){$('sub').textContent='Controller not reachable';}}
 async function send(body,what){
   try{
     const r=await fetch('/api/set',{method:'POST',headers:{'X-OTA-Password':pw,'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -220,18 +305,38 @@ for(const b of $('fan').children)b.onclick=()=>send({fan:+b.dataset.v},'Fan spee
 for(const b of $('bypass').children)b.onclick=()=>send({bypass:b.dataset.v},'Bypass');
 for(const b of $('holiday').children)b.onclick=()=>send({holiday:b.dataset.v==='true'},'Holiday mode');
 for(const b of $('night').children)b.onclick=()=>send({night:{on:b.dataset.v==='true'}},'Night mode');
-for(const id of ['rhset','bdelay','overrun','nstart','nend'])$(id).oninput=()=>dirty[id]=true;
+for(const id of ['outoff','rhset','bdelay','overrun','nstart','nend'])$(id).oninput=()=>dirty[id]=true;
+const FANIDS=['fi1','fi2','fi3','fo1','fo2','fo3'];
+const numOf=e=>parseFloat(String(e.value).replace(',','.'));
+for(const id of FANIDS){const e=$(id);
+  e.oninput=()=>dirty[id]=true;
+  e.onfocus=()=>{const x=numOf(e);if(!isNaN(x)){e.value=x;}e.select();};       /* editing: just the number */
+  e.onblur=()=>{const x=numOf(e);if(!isNaN(x))e.value=x.toFixed(1)+' %';};}    /* otherwise: with % */
 const toMin=v=>{const [h,m]=v.split(':').map(Number);return h*60+m;};
 document.querySelectorAll('[data-save]').forEach(b=>b.onclick=async()=>{
   const k=b.dataset.save;let body,what,ids=[k];
-  if(k==='rhset'){body={rh_set:+$('rhset').value};what='Humidity setpoint';}
+  if(k==='outoff'){const v=parseFloat($('outoff').value);if(!(v>=-10&&v<=10)){toast('Offset must be between -10 and +10');return;}body={out_offset:Math.round(v*10)/10};what='Outdoor offset';}
+  else if(k==='rhset'){body={rh_set:+$('rhset').value};what='Humidity setpoint';}
   else if(k==='bdelay'){body={boost_delay:+$('bdelay').value};what='Boost delay';}
   else if(k==='overrun'){body={overrun_min:+$('overrun').value};what='Overrun';}
+  else if(k==='fans'){
+    const v=FANIDS.map(id=>numOf($(id)));
+    if(v.some(x=>!(x>=10&&x<=100))){toast('Fan speeds must be between 10 and 100 %');return;}
+    const was=[...S.fans.in,...S.fans.out],names=['Intake speed 1','Intake speed 2','Intake speed 3','Exhaust speed 1','Exhaust speed 2','Exhaust speed 3'];
+    const ch=v.map((x,i)=>Math.abs(x-was[i])>=0.05?`${names[i]}: ${was[i].toFixed(1)} % to ${x.toFixed(1)} %`:null).filter(Boolean);
+    if(!ch.length){toast('No fan speed was changed');return;}
+    const f=a=>a.map(x=>x.toFixed(1)).join(' / ');
+    if(!confirm('Change fan speed balance\n\nYou are changing the fan speed balance. This changes the unit\'s installer settings, and the unit\'s air flow will change.\n\nWrite down the original settings first so you can put them back:\nIntake '+f(S.fans.in)+' %\nExhaust '+f(S.fans.out)+' %\n(speeds 1 / 2 / 3)\n\n'+ch.join('\n')+'\n\nApply?'))return;
+    body={fans:{in:v.slice(0,3).map((x,i)=>Math.abs(x-was[i])>=0.05?x:null),out:v.slice(3).map((x,i)=>Math.abs(x-was[i+3])>=0.05?x:null)}};what='Fan speeds';ids=FANIDS;
+  }
   else{body={night:{start:toMin($('nstart').value),end:toMin($('nend').value)}};what='Night times';ids=['nstart','nend'];}
   if(await send(body,what))ids.forEach(i=>delete dirty[i]);
 });
 $('resetfilter').onclick=()=>{if(confirm('Reset the filter saturation counter to 0 %? Do this after cleaning the filters.'))send({reset_filter:true},'Filter reset');};
 $('setclock').onclick=()=>{const t=new Date();send({clock:{h:t.getHours(),mi:t.getMinutes(),d:t.getDate(),mo:t.getMonth()+1,y:t.getFullYear()}},'Clock');};
+for(const b of $('ntpmode').children)b.onclick=()=>send({ntp:{on:b.dataset.v==='true'}},'Network time');
+$('zone').onchange=()=>{if($('zone').value!=='custom')send({ntp:{zone:+$('zone').value}},'Time zone');};
+$('ntpnow').onclick=()=>send({ntp_check:true},'Network time check');
 $('wifiopen').onclick=()=>$('wifibox').classList.toggle('hidden');
 $('wifiscan').onclick=async()=>{
   const ul=$('nets');ul.innerHTML='<li class="meta">Scanning…</li>';

@@ -1,5 +1,7 @@
 /* Home: clock, inside/outside climate in a house drawing, fan speed and bypass. */
+#include <ctype.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "ha.h"
 #include "net.h"
@@ -9,8 +11,8 @@
 #define BODY_H          118
 #define FAN_PENDING_MS  4000    /* show the requested speed until the unit reports it */
 
-static lv_obj_t *s_time, *s_date, *s_wifi, *s_ha, *s_banner, *s_banner_icon, *s_banner_text, *s_body;
-static lv_obj_t *s_rh_in, *s_chip, *s_speed, *s_pips[3], *s_minus, *s_plus, *s_bypass, *s_bypass_text;
+static lv_obj_t *s_time, *s_date, *s_wifi, *s_ha, *s_ha_glyph, *s_banner, *s_banner_icon, *s_banner_text, *s_body;
+static lv_obj_t *s_rh_in, *s_airflow, *s_airflow_icon, *s_fan_in, *s_fan_out, *s_fan_in_box, *s_fan_out_box, *s_chip, *s_chip_text, *s_speed, *s_pips[3], *s_minus, *s_plus, *s_bypass, *s_bypass_text;
 static ui_temp_t s_t_in, s_t_out;
 static uint16_t s_banner_bit;
 static int s_fan_pending;
@@ -76,16 +78,12 @@ static void home_refresh(const mvhr_state_t *st)
 
     net_status_t n;
     net_get_status(&n);
-    if (n.state == NET_OFF) {
-        lv_obj_add_flag(s_wifi, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        lv_obj_remove_flag(s_wifi, LV_OBJ_FLAG_HIDDEN);
-        bool up = n.state == NET_CONNECTED;
-        lv_image_set_src(s_wifi, up ? &ic_wifi_18 : &ic_wifi_off_18);
-        lv_obj_set_style_image_recolor(s_wifi, up ? COL_ACCENT : COL_MUTED, 0);
-    }
+    /* shown only while connected */
+    lv_obj_set_flag(s_wifi, LV_OBJ_FLAG_HIDDEN, n.state != NET_CONNECTED);
 
-    lv_obj_set_flag(s_ha, LV_OBJ_FLAG_HIDDEN, ha_state() != HA_CONNECTED);
+    bool ha_up = ha_state() == HA_CONNECTED;
+    lv_obj_set_flag(s_ha, LV_OBJ_FLAG_HIDDEN, !ha_up);
+    lv_obj_set_flag(s_ha_glyph, LV_OBJ_FLAG_HIDDEN, !ha_up);
 
     /* banner: unit offline, else the most important alarm */
     const ui_alarm_info_t *a = st->online ? ui_alarm_top(st->alarms) : NULL;
@@ -104,6 +102,9 @@ static void home_refresh(const mvhr_state_t *st)
         lv_obj_add_flag(s_banner, LV_OBJ_FLAG_HIDDEN);
         lv_obj_set_y(s_body, 36 + (144 - BODY_H) / 2);
     }
+    /* the fan readings above the roof share the banner's strip */
+    lv_obj_set_flag(s_fan_in_box, LV_OBJ_FLAG_HIDDEN, offline || a);
+    lv_obj_set_flag(s_fan_out_box, LV_OBJ_FLAG_HIDDEN, offline || a);
 
     bool valid = st->online && (st->valid & MVHR_G_STATUS);
     ui_temp_set(&s_t_in, valid, st->temp_extract_x10);
@@ -118,9 +119,31 @@ static void home_refresh(const mvhr_state_t *st)
     } else {
         lv_label_set_text_fmt(s_rh_in, "%u %%", (st->humidity_x10 + 5) / 10);
     }
+    const char *flow = valid ? mvhr_airflow_text(st) : "--";
+    lv_label_set_text(s_airflow, flow);
+    /* heat recovery orange, bypass blue; intake motor off keeps grey text with a green icon */
+    int flow_mode = mvhr_airflow_mode(st);
+    lv_color_t flow_col = !valid ? COL_MUTED : flow_mode == 0 ? COL_HOT : flow_mode == 1 ? COL_ACCENT : COL_OK;
+    lv_obj_set_style_text_color(s_airflow, valid && flow_mode == 2 ? COL_MUTED : flow_col, 0);
+    static const lv_image_dsc_t *const flow_icons[] = {&ic_flow_hr_28, &ic_flow_bypass_28, &ic_flow_off_28};
+    lv_image_set_src(s_airflow_icon, flow_icons[flow_mode]);
+    lv_obj_set_style_image_recolor(s_airflow_icon, flow_col, 0);
+    lv_obj_set_flag(s_airflow_icon, LV_OBJ_FLAG_HIDDEN, !valid);
+    if (valid) {
+        lv_label_set_text_fmt(s_fan_in, "%u%%", st->fan_a_pct);
+        lv_label_set_text_fmt(s_fan_out, "%u%%", st->fan_b_pct);
+    } else {
+        lv_label_set_text(s_fan_in, "--");
+        lv_label_set_text(s_fan_out, "--");
+    }
     const char *fn = valid ? mvhr_function_text(st) : NULL;
     if (fn) {
-        lv_label_set_text(s_chip, fn);
+        char tag[24];
+        snprintf(tag, sizeof(tag), "%s", !strcmp(fn, "Boost") ? "Boost active" : fn);   /* HA and the web keep "Boost" */
+        for (char *c = tag; *c; c++) {
+            *c = (char)toupper((unsigned char)*c);
+        }
+        lv_label_set_text(s_chip_text, tag);
         lv_obj_remove_flag(s_chip, LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(s_chip, LV_OBJ_FLAG_HIDDEN);
@@ -175,8 +198,11 @@ void ui_show_home(void)
     lv_obj_set_style_pad_bottom(s_date, 2, 0);
     s_wifi = ui_icon(scr, &ic_wifi_18, COL_ACCENT);
     lv_obj_set_pos(s_wifi, SCR_W - 44 - 8 - 18, 9);
-    s_ha = ui_icon(scr, &ic_home_18, COL_ACCENT);
+    /* Home Assistant logo: blue house with the light glyph on top */
+    s_ha = ui_icon(scr, &ic_ha_house_18, lv_color_hex(0x18bcf2));
     lv_obj_set_pos(s_ha, SCR_W - 44 - 8 - 18 - 8 - 18, 9);
+    s_ha_glyph = ui_icon(scr, &ic_ha_glyph_18, lv_color_hex(0xf2f4f9));
+    lv_obj_set_pos(s_ha_glyph, SCR_W - 44 - 8 - 18 - 8 - 18, 9);
     lv_obj_t *gear = lv_button_create(scr);
     ui_style_button(gear, true);
     lv_obj_set_style_radius(gear, 0, 0);
@@ -221,39 +247,84 @@ void ui_show_home(void)
         lv_obj_set_style_line_color(l, COL_HOUSE, 0);
         lv_obj_set_style_line_rounded(l, true, 0);
     }
+    /* inside the house: mode icon under the apex with its name, temperature and humidity along the bottom */
     lv_obj_t *in = ui_box(s_body);
-    lv_obj_set_width(in, 140);
-    lv_obj_set_pos(in, 32, 36);
+    lv_obj_set_size(in, 140, 92);
+    lv_obj_set_pos(in, 32, 19);
+    lv_obj_set_style_pad_top(in, 9, 0);     /* nudges the mode group down, nearer the middle */
     lv_obj_set_flex_flow(in, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(in, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(in, 3, 0);
-    ui_temp_create(&s_t_in, in, &lv_font_montserrat_28, 7);
-    lv_obj_t *rh = ui_box(in);
+    lv_obj_set_flex_align(in, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_t *mode = ui_box(in);
+    lv_obj_set_flex_flow(mode, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(mode, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(mode, 1, 0);
+    s_airflow_icon = ui_icon(mode, &ic_flow_hr_28, COL_MUTED);
+    s_airflow = ui_label(mode, &lv_font_montserrat_14, COL_MUTED, "--");
+    lv_obj_t *row = ui_box(in);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(row, 8, 0);
+    /* thermometer + temperature, droplet + humidity, both at the same size */
+    lv_obj_t *tg = ui_box(row);
+    lv_obj_set_flex_flow(tg, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(tg, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(tg, 2, 0);
+    ui_icon(tg, &ic_thermo_16, COL_ACCENT);
+    ui_temp_create(&s_t_in, tg, &lv_font_montserrat_18, 4);
+    lv_obj_t *rh = ui_box(row);
     lv_obj_set_flex_flow(rh, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(rh, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(rh, 4, 0);
-    ui_icon(rh, &ic_droplet_14, COL_ACCENT);
-    s_rh_in = ui_label(rh, &lv_font_montserrat_14, COL_TEXT, "-- %");
-    s_chip = ui_label(in, &lv_font_montserrat_12, COL_WHITE, "");
-    lv_obj_set_style_bg_color(s_chip, COL_ACCENT, 0);
-    lv_obj_set_style_bg_opa(s_chip, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(s_chip, 9, 0);
-    lv_obj_set_style_pad_hor(s_chip, 8, 0);
-    lv_obj_set_style_pad_ver(s_chip, 2, 0);
-    lv_obj_add_flag(s_chip, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_pad_column(rh, 2, 0);
+    ui_icon(rh, &ic_droplet_16, COL_ACCENT);
+    s_rh_in = ui_label(rh, &lv_font_montserrat_18, COL_TEXT, "-- %");
 
     lv_obj_t *out = ui_box(s_body);
-    lv_obj_set_size(out, 108, 90);
-    lv_obj_set_pos(out, 206, 22);
+    lv_obj_set_size(out, 118, 90);
+    lv_obj_set_pos(out, 200, 10);     /* 59 px from the top of the screen (body starts at 49) */
     lv_obj_set_style_border_side(out, LV_BORDER_SIDE_LEFT, 0);
     lv_obj_set_style_border_width(out, 1, 0);
     lv_obj_set_style_border_color(out, COL_LINE, 0);
     lv_obj_set_style_pad_left(out, 8, 0);
     lv_obj_set_flex_flow(out, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(out, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+    lv_obj_set_flex_align(out, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);   /* label, temperature and tag centred in the column, as in the preview */
     lv_obj_set_style_pad_row(out, 3, 0);
-    ui_label(out, &lv_font_montserrat_10, COL_MUTED, "OUTSIDE");
+    ui_label(out, &lv_font_montserrat_10, COL_MUTED, "OUTDOOR TEMP");
     ui_temp_create(&s_t_out, out, &lv_font_montserrat_22, 6);   /* the unit has no outside humidity sensor */
+
+    /* active function (boost, night mode...) as a tag as wide as the column, in capitals */
+    s_chip = ui_box(out);
+    lv_obj_set_size(s_chip, LV_PCT(100), 46);
+    lv_obj_set_style_bg_color(s_chip, COL_ACCENT, 0);
+    lv_obj_set_style_bg_opa(s_chip, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(s_chip, 8, 0);
+    lv_obj_set_style_pad_hor(s_chip, 5, 0);     /* padding 0 5 px around the text */
+    lv_obj_set_style_pad_ver(s_chip, 0, 0);
+    lv_obj_set_flex_flow(s_chip, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(s_chip, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    s_chip_text = ui_label(s_chip, &lv_font_montserrat_14, COL_WHITE, "");
+    lv_obj_set_width(s_chip_text, LV_PCT(100));
+    lv_obj_set_style_text_align(s_chip_text, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_add_flag(s_chip, LV_OBJ_FLAG_HIDDEN);
+
+    /* intake fan above the left half of the roof, exhaust fan above the right half */
+    for (int i = 0; i < 2; i++) {
+        lv_obj_t *box = ui_box(scr);
+        lv_obj_set_size(box, 90, 32);
+        lv_obj_set_pos(box, i ? 102 : 8, 42);
+        lv_obj_set_flex_flow(box, LV_FLEX_FLOW_COLUMN);
+        /* the track must be pushed right too, otherwise the lines only line up with each other, not with the box edge */
+        lv_obj_set_flex_align(box, LV_FLEX_ALIGN_START, i ? LV_FLEX_ALIGN_END : LV_FLEX_ALIGN_START,
+                              i ? LV_FLEX_ALIGN_END : LV_FLEX_ALIGN_START);
+        ui_label(box, &lv_font_montserrat_12, COL_MUTED, i ? "Exhaust fan:" : "Intake fan:");
+        lv_obj_t *val = ui_label(box, &lv_font_montserrat_14, COL_TEXT, "--");
+        if (i) {
+            s_fan_out_box = box;
+            s_fan_out = val;
+        } else {
+            s_fan_in_box = box;
+            s_fan_in = val;
+        }
+    }
 
     /* footer: fan speed and bypass */
     lv_obj_t *foot = ui_box(scr);

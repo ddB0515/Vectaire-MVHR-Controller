@@ -71,7 +71,9 @@ typedef struct {
     /* status (cmd 0x00) */
     uint16_t alarms;
     int16_t temp_extract_x10;   /* inside / extract air, 0.1 C */
-    int16_t temp_supply_x10;    /* outside / supply air, 0.1 C */
+    int16_t temp_supply_x10;    /* outside / supply air, 0.1 C, with the outdoor offset added (see below) */
+    int16_t temp_supply_raw_x10;    /* the same as the unit reports it (filled in by mvhr_get_state) */
+    int16_t outdoor_offset_x10;     /* the offset that was added (filled in by mvhr_get_state) */
     uint8_t status;             /* raw status byte: function (low nibble) + indicators */
     uint16_t humidity_x10;      /* status bytes 7-8: relative humidity (inside), 0.1 %; see mvhr_humidity_shown() */
     uint8_t fan_speed;          /* 1..3 */
@@ -109,6 +111,12 @@ typedef void (*mvhr_listener_t)(uint32_t changed, void *arg);
 esp_err_t mvhr_start(bool simulated);
 bool mvhr_is_simulated(void);
 
+/* Calibration offset for the outdoor (supply side) temperature, tenths of a degree, -100..+100. It is added in
+   mvhr_get_state(), so the screen, the web page and Home Assistant all show the corrected value. It changes only what
+   is displayed and reported: the unit itself keeps using its own reading. */
+#define MVHR_OUTDOOR_OFFSET_MAX_X10 100
+esp_err_t mvhr_set_outdoor_offset(int16_t x10);
+
 /* Snapshot of the current state (thread-safe). */
 void mvhr_get_state(mvhr_state_t *out);
 
@@ -122,6 +130,12 @@ esp_err_t mvhr_set_holiday(bool on);
 esp_err_t mvhr_set_boost_delay(uint16_t seconds);   /* 0..300 */
 esp_err_t mvhr_set_overrun(uint16_t seconds);       /* 0..5400 */
 esp_err_t mvhr_set_humidity_setpoint(uint8_t pct);  /* 35..99 */
+/* Installer fan duty per speed, tenths of a percent (100..1000 = 10.0..100.0 %). Index 0..2 = intake speed 1..3,
+   3..5 = exhaust speed 1..3; only those set in mask are changed. The model task reads the unit's current config
+   block, changes just those bytes, writes the block back and reads it again to check. */
+#define MVHR_FAN_DUTY_MIN_X10   100
+#define MVHR_FAN_DUTY_MAX_X10   1000
+esp_err_t mvhr_set_fan_duties(const uint16_t pct_x10[6], uint8_t mask);
 esp_err_t mvhr_set_night_inhibition(bool enabled, uint16_t start_min, uint16_t end_min);
 esp_err_t mvhr_set_time(uint8_t hour, uint8_t minute);
 esp_err_t mvhr_set_date(uint8_t day, uint8_t month, uint16_t year);
@@ -139,6 +153,7 @@ void mvhr_refresh(uint32_t groups);                 /* poll these groups as soon
 const char *mvhr_function_text(const mvhr_state_t *st);   /* active function, holiday, frost; NULL if none */
 const char *mvhr_alarm_text(uint16_t alarms);             /* most important alarm, "None" if none */
 const char *mvhr_boost_text(const mvhr_state_t *st);      /* "Off", "Delay", "On" or "Overrun" */
+int mvhr_airflow_mode(const mvhr_state_t *st);              /* 0 heat recovery, 1 bypass, 2 intake motor off */
 const char *mvhr_airflow_text(const mvhr_state_t *st);    /* "Heat recovery", "Bypass" or "Intake motor off" */
 
 #ifdef __cplusplus

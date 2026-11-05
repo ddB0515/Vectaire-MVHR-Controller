@@ -16,7 +16,6 @@ static const char *TAG = "ui";
 
 #define TICK_MS             250
 #define BACK_HOME_MS        60000   /* other screens fall back to home without a touch */
-#define DIM_PCT             10
 #define CONNECTED_SHOW_MS   3000
 
 void ui_refresh_current(const mvhr_state_t *st);   /* ui_common.c */
@@ -56,7 +55,7 @@ static void go_dark(light_t level)
         lv_obj_add_event_cb(s_shield, shield_cb, LV_EVENT_PRESSED, NULL);
     }
     s_light = level;
-    board_backlight_set(level == LIGHT_DIM ? DIM_PCT : 0);
+    board_backlight_set(level == LIGHT_DIM ? settings_get()->dim_pct : 0);
 }
 
 static void sleep_tick(void)

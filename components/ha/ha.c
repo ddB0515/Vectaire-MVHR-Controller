@@ -248,7 +248,8 @@ static void publish_state(void)
     cJSON_AddStringToObject(o, "function", fn ? fn : "Normal");
     cJSON_AddStringToObject(o, "mode", mvhr_airflow_text(&st));
     cJSON_AddStringToObject(o, "boost", mvhr_boost_text(&st));
-    cJSON_AddStringToObject(o, "alarm", mvhr_alarm_text(st.alarms));
+    /* not "None": Home Assistant reads a template result of "None" as no value and shows "Unknown" */
+    cJSON_AddStringToObject(o, "alarm", st.alarms ? mvhr_alarm_text(st.alarms) : "No alarm");
     cJSON_AddStringToObject(o, "problem", on_off(st.alarms & ~MVHR_ALARM_FIRE));
     cJSON_AddStringToObject(o, "fire", on_off(st.alarms & MVHR_ALARM_FIRE));
     cJSON_AddStringToObject(o, "frost", on_off(st.frost));
