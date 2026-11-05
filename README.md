@@ -24,11 +24,14 @@ without a screen, and you can also use it from a phone or a computer:
 5. [Using the touch screen](#using-the-touch-screen)
 6. [Web page](#web-page)
 7. [Home Assistant](#home-assistant)
-8. [Device password](#device-password)
-9. [Button and status LED](#button-and-status-led)
-10. [Troubleshooting](#troubleshooting)
-11. [Project layout](#project-layout)
-12. [Building, flashing and updating: `idf.sh` and `ota.sh`](#building-flashing-and-updating-idfsh-and-otash)
+8. [Network time](#network-time)
+9. [Fan speed settings](#fan-speed-settings)
+10. [Not built yet](#not-built-yet)
+11. [Device password](#device-password)
+12. [Button and status LED](#button-and-status-led)
+13. [Troubleshooting](#troubleshooting)
+14. [Project layout](#project-layout)
+15. [Building, flashing and updating: `idf.sh` and `ota.sh`](#building-flashing-and-updating-idfsh-and-otash)
 
 ---
 
@@ -74,8 +77,7 @@ PSRAM is not needed. The default pins for each chip are in [Wiring](#default-pin
 ### MVHR units
 
 The controller works with Vectaire units that use the original LCD panel on the one-wire bus (1200 baud). Units with
-config block version 1.3 (49 bytes) and 2.0 (67 bytes) are recognised. The protocol was reverse-engineered from the
-original panel's firmware and checked against real units.
+config block version 1.3 (49 bytes) and 2.0 (67 bytes) are recognised. The protocol has been checked against real units.
 
 ## Wiring to the MVHR
 
@@ -151,11 +153,15 @@ doesn't resolve `.local` names.
 ## Using the touch screen
 
 **Home screen** shows:
-- inside and outside temperature, and indoor humidity ("Low" below 35 %, "High" above 99 %, as on the original panel),
-- fan speed (1–3), with − and + buttons, and the bypass state,
-- the current function (normal, boost, bypass, holiday …),
+- a house with the **airflow mode** under the roof (heat recovery in orange, bypass in blue, intake motor off in
+  green, each with its icon) and the **inside temperature and humidity** along the bottom ("Low" below 35 %, "High"
+  above 99 %, as on the original panel),
+- the **intake and exhaust fan** percentages above the roof (intake left, exhaust right),
+- the **outdoor temperature** on the right, with the current function below it when there is one (holiday, night
+  mode …; "Boost active" during a boost),
+- fan speed (1–3), with − and + buttons, and the bypass button,
 - the time and date,
-- Wi-Fi and Home Assistant status,
+- a Wi-Fi icon (only while connected) and the Home Assistant logo (only while connected),
 - an alarm banner when there is an alarm.
 
 **Menu**:
@@ -167,14 +173,14 @@ doesn't resolve `.local` names.
 | Humidity | Humidity setpoint for automatic boost |
 | Timers | Boost delay and overrun |
 | Bypass | Summer bypass: auto, or forced on/off |
-| Clock | Sets the unit's time and date |
+| Clock | Sets the unit's time and date by hand; **Network time** (see [Network time](#network-time)) |
 | Filter | Filter saturation, hours of service, power outages; reset the filter counter after a filter change |
-| Device | Wi-Fi, Home Assistant, dark theme, dim and screen-off times, firmware version (tap it to see the device password) |
+| Device | Wi-Fi, Home Assistant, dark theme, **dim after**, **dim level** (1, 5, 10, 25 or 50 %), **screen off after**, [**fan speeds**](#fan-speed-settings), **outdoor temp offset** (−10.0 to +10.0 °C in 0.1 steps), firmware version (tap it to see the device password) |
 
 **Alarms** pop up by themselves. A **fire alarm** takes over the whole screen.
 
-**Sleep:** the screen dims, then switches off when nobody touches it (both times can be set under Device). Tap to
-wake it: that first tap only wakes the screen and doesn't press anything. After 60 s without a touch it also goes back
+**Sleep:** the screen dims, then switches off when nobody touches it (both times and the dim level can be set under
+Device). Tap to wake it: that first tap only wakes the screen and doesn't press anything. After 60 s without a touch it also goes back
 to the home screen.
 
 **Dark theme:** Menu › Device › Dark theme. It is saved and applied straight away.
@@ -185,10 +191,11 @@ to the home screen.
 
 | Section | What's there |
 |---|---|
-| **Climate** | Inside and outside temperature, indoor humidity, fan speed (with intake/exhaust fan %) |
+| **Overview** | The same picture as the controller's home screen: airflow mode (with icon and colour), inside temperature and humidity, intake and exhaust fan %, outdoor temperature, and the current function |
 | **Ventilation** | Fan speed, boost state (off / delay / on / overrun), bypass (with what it does now), holiday mode on/off |
-| **Settings** | Humidity setpoint, boost delay, overrun, night mode |
-| **Maintenance** | Filter saturation, reset filter counter, hours of service |
+| **Settings** | Humidity setpoint, boost delay, overrun, night mode, outdoor temperature offset |
+| **Fan speed settings** | The installer fan percentages per speed. Shown only once the unit's settings have been read; editable when unlocked, see [Fan speed settings](#fan-speed-settings) |
+| **Maintenance** | Filter saturation, reset filter counter, hours of service, the unit's clock (**Set unit clock to this device's time**, and [network time](#network-time)) |
 | **Device** | Firmware, unit firmware, Wi-Fi, Home Assistant status, uptime; **Change Wi-Fi network** (scan, pick, password). The new network is tried first and kept only if it connects within 45 s, otherwise the controller goes back to the old one |
 | **Changes** (at the bottom) | Unlock with the [device password](#device-password) to make changes; the password stays only in that browser tab |
 
@@ -200,6 +207,8 @@ The links at the bottom open two more pages:
   - bus health and counters,
   - the last bus exchanges,
   - the wiring test,
+  - the **unit's clock** as raw values (12/24 h, date format, time zone number, the UTC offset byte whose top bit may be the unit's own daylight saving flag),
+  - the **outdoor temperature** three ways: as the unit reports it, the offset, and the value shown,
   - memory, Wi-Fi and the reason for the last restart,
   - a stored crash report, if there is one,
   - the full bus trace since start-up.
@@ -219,13 +228,90 @@ You need an MQTT broker (for example the Mosquitto add-on) and the MQTT integrat
 | Binary sensors | Problem, fire alarm, frost protection |
 | Button | Reset filter counter |
 
+The **outdoor temperature** sent to Home Assistant includes the **outdoor temperature offset** (Menu › Device, or the
+Settings card on the web page): a correction of −10.0 to +10.0 °C in 0.1 steps for a sensor that reads a little high or low.
+The same corrected value is shown on the screen and the web page; the Diagnostics page lists the unit's own reading,
+the offset and the shown value. The offset changes only what is displayed and reported, not what the unit itself uses.
+A new offset reaches Home Assistant with the next regular update (the "Update every" time).
+
 The entities show **unavailable** when the controller is offline, and also when the unit doesn't respond on the bus.
+
+The **alarm** sensor reads "No alarm" when all is well (Home Assistant would show "Unknown" for the text "None").
 
 MQTT topics, for the curious:
 - discovery: `homeassistant/<component>/<id>/<obj>/config`
 - state: `vectaire/<id>/state` (retained JSON)
 - commands: `vectaire/<id>/<obj>/set`
 - availability: `vectaire/<id>/status` and `vectaire/<id>/unit`
+
+## Network time
+
+The controller can set the unit's clock from the internet. It needs Wi-Fi, so it is **off by default**. The clock can
+also always be set by hand: on the screen (Menu › Clock › Set time / Set date), or on the web page with **Set unit
+clock to this device's time**, which uses the time of the phone or computer you are on.
+
+| Setting | Meaning |
+|---|---|
+| **Network time** | On or off (Menu › Clock › Network time, or the web page's Maintenance card) |
+| **Time zone** | Pick a city or region from the list, for example London, Berlin, New York / Toronto or Tokyo / Seoul. Each entry carries its standard (winter) time offset from UTC and its summer time rule. On the screen: Menu › Clock › Network time › Time zone (a scrolling list). On the web page: the Time zone menu, which shows entries as `(UTC+01:00) Berlin (summer time)` |
+
+How it works:
+- About a minute after start-up, and then **once a day**, the controller asks `pool.ntp.org` for the time.
+- From that and the time zone it works out what the unit's clock should show, including the hour. The zone's summer
+  time rule (last Sunday of March and October for the UK and Europe, second Sunday of March and first Sunday of
+  November for the US and Canada) is used only to know whether summer time is on at that moment; the controller never
+  moves the clock by itself on the changeover dates, so with network time off the clock only changes when you set it.
+- If the clock is **more than 2 minutes out**, it is set to the right time (the unit has no seconds). If it is within
+  2 minutes nothing is changed.
+- With no Wi-Fi, no answer from the server or an unreadable clock, it tries again after about 10 minutes (5 minutes if
+  the unit's clock could not be read). **Check now** (screen and web page) runs a check at once.
+- The result of the last check is shown under the setting, for example "Last check 3 h ago: the clock was 5 min fast
+  and was corrected."
+
+The list holds regions whose summer time follows the European or the North American rule, plus regions with no summer
+time (UTC, Reykjavik, Tokyo / Seoul, Dubai and others). Regions with southern-hemisphere summer time, such as Sydney
+or Auckland, are not in the list. Without Wi-Fi the clock keeps running on the unit's own clock and is changed by hand
+when needed.
+
+To add a region, add a line to `components/mvhr_model/timezones.c`: the web page, the screen and the web preview all
+read that one table.
+
+> The night-mode quiet hours use the unit's clock, so a wrong time zone or rule moves them.
+
+## Fan speed settings
+
+The unit stores how hard each fan runs at speed 1, 2 and 3 (intake and exhaust separately, as set when the unit was
+commissioned), plus a frost stall speed and a holiday reduction. The original panel hides these behind an installer
+PIN. This firmware can show them, and change the six intake and exhaust values.
+
+| Where | How |
+|---|---|
+| **Screen** | Menu › Device › **Fan speeds**. Tap a value, change it in whole percent (10–100), tap Set, read the warning, then Apply |
+| **Web page** | **Fan speed settings** card. Unlock, edit the boxes (values show with a % sign; type just the number), press Save |
+
+Both show a warning first. It says you are changing the fan speed balance and lists the **original values** so you can
+write them down and put them back. The values are 10.0–100.0 % of full fan speed; the firmware refuses anything outside
+that. Frost stall speed and holiday reduction are shown but cannot be changed.
+
+How a change reaches the unit: the controller reads the unit's installer config block (49 bytes) again, changes only
+the fan bytes you edited, writes the whole block back (command `0x10`), and reads it again to check. The log says
+"now reports the new values" or "does NOT report the new values". All other installer settings are sent back exactly as
+the unit gave them.
+
+> **Be careful.** These settings change how much air each speed moves and the balance between intake and exhaust.
+> Note the original values before changing anything, and change one value at a time while you check the unit.
+> Changing the fan speeds has not yet been confirmed on every unit, so try it on one value first.
+
+## Not built yet
+
+- **Daylight saving without a network:** the controller does not change the clock by itself on the changeover dates.
+  Network time (or setting it by hand) does that.
+- **Southern-hemisphere summer time:** the time zone list has no Sydney, Auckland and similar regions, because only the
+  European and North American summer time rules are built in.
+- **More installer settings:** only the six intake and exhaust fan percentages can be changed. Frost stall speed and
+  holiday reduction are shown but read-only, and the other installer settings (frost and bypass thresholds, heater
+  threshold, handing) are not shown.
+- **Fan speed write:** changing the fan speeds has not been confirmed on every unit.
 
 ## Device password
 
@@ -284,11 +370,13 @@ MQTT settings are kept in both cases.
 | `components/net` | Wi-Fi, setup hotspot and page, mDNS, OTA updates |
 | `components/web` | Home page, diagnostics and JSON API |
 | `components/ha` | Home Assistant (MQTT discovery) |
+| `components/autoclock` | Daily network time for the unit's clock (summer time rules in `mvhr_model/dst.c`, the time zone list in `mvhr_model/timezones.c`, the decision logic in `mvhr_model/timesync.c`) |
 | `components/settings` | Saved settings (NVS) |
 | `components/status_led` | Headless status LED |
 | `components/board`, `components/ui` | Display variant only: screen, touch, LVGL screens |
 | `test/host/` | Unit tests for the bus codec, decoder and simulator; these run on a PC |
-| `docs/` | [`HEADLESS.md`](docs/HEADLESS.md); `board/`: vendor schematic, display spec and demo sketch |
+| `tools/` | `idf.sh`, `ota.sh`, `gen_icons.py` (screen icons), `web_preview.py` (web page preview) |
+| `docs/` | [`HEADLESS.md`](docs/HEADLESS.md); `home_preview.html` (mock of the home screen); `board/`: vendor schematic, display spec and demo sketch |
 
 **Host tests** run on a PC and don't need ESP-IDF:
 
@@ -299,10 +387,25 @@ gcc -Icomponents/vectaire_bus/include -Icomponents/mvhr_model/include -Icomponen
 gcc -Icomponents/vectaire_bus/include -Icomponents/mvhr_model/include -Icomponents/mvhr_model -Itest/host/stub \
     components/vectaire_bus/vbus_codec.c components/mvhr_model/mvhr_decode.c components/mvhr_model/mvhr_sim.c \
     test/host/test_sim.c -o /tmp/test_sim && /tmp/test_sim
+gcc -Icomponents/mvhr_model/include -Icomponents/mvhr_model -Itest/host/stub components/mvhr_model/dst.c \n    test/host/test_dst.c -o /tmp/test_dst && /tmp/test_dst
+gcc -Icomponents/mvhr_model/include -Icomponents/mvhr_model -Itest/host/stub components/mvhr_model/dst.c     components/mvhr_model/timesync.c test/host/test_timesync.c -o /tmp/test_timesync && /tmp/test_timesync
 ```
 
 **Unit simulator:** to develop without an MVHR, enable "Always use the built-in unit simulator" in menuconfig
-(menu "Vectaire"). The bus UART is then not used at all.
+(menu "Vectaire"). The bus UART is then not used at all. The simulated unit accepts the fan-speed config write too.
+
+**Previewing the web page without building:** `python tools/web_preview.py [port]` serves
+`components/web/www/home.html` straight from disk with made-up data, so you can edit the page and refresh the browser.
+A "Preview controls" panel (bottom right) changes the data: function, airflow mode, temperatures, fan %, alarms,
+Home Assistant and Wi-Fi status and so on. Any password unlocks the page. If the port is busy, pick another one;
+old preview windows keep their port.
+
+**Previewing the home screen:** open `docs/home_preview.html` in a browser. It is a mock of the controller's home
+screen with switches for the Wi-Fi and Home Assistant icons and other states; it is not generated from the firmware, so
+update it together with `components/ui/ui_home.c`.
+
+**Icons:** the screen's icons are generated from SVG paths in `tools/gen_icons.py` into `components/ui/icons.c`
+and `icons.h`. After changing icons run `python3 tools/gen_icons.py` (needs `librsvg2-bin` and `imagemagick`).
 
 ---
 
@@ -503,6 +606,12 @@ Things to know:
 3. The new firmware is **confirmed once it reconnects to Wi-Fi**. If it crashes, or doesn't reach Wi-Fi within
    5 minutes, the controller **rolls back** to the previous version by itself.
 4. `ota.sh` waits up to 3 minutes for the new build time to show up and prints the result.
+
+`ota.sh` prints numbered steps with the time since it started, so you can see where it is: `[1/6] Finding the
+controller`, `[2/6] Device password`, `[3/6] Building` (the compiler's progress on one line; a failed build prints the
+last 40 lines of its output), `[4/6] Checking the firmware image` (size and build time), `[5/6] Uploading` (a progress
+bar on a terminal) and `[6/6] Waiting for the controller to restart`, with a line every 3 seconds saying whether it is
+answering and which firmware it runs. With `--no-build` there are five steps.
 
 A wrong password is answered after a 1 s delay, which slows down guessing. The script then tells you where to find
 the password.

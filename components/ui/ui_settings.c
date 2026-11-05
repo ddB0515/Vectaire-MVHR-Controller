@@ -1,12 +1,15 @@
 /* Menu and the screens behind it: bypass, holiday, night mode, humidity, timers, clock, filter, device. */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
+#include "autoclock.h"
 #include "esp_app_desc.h"
 #include "esp_system.h"
 #include "ha.h"
 #include "net.h"
 #include "settings.h"
+#include "timezones.h"
 #include "ui_priv.h"
 
 #define PICK_PENDING_MS 4000
@@ -386,6 +389,7 @@ void ui_show_night(void)
 /* ---------------------------------------------------------------- clock */
 
 static lv_obj_t *s_clock_time, *s_clock_date, *s_clock_note;
+static void show_ntp(void);
 
 static void clock_refresh(const mvhr_state_t *st)
 {
@@ -428,6 +432,11 @@ static void set_date_cb(lv_event_t *e)
     ui_edit_fields("Set date", f, 3, "/", date_set, ui_show_clock);
 }
 
+static void ntp_open_cb(lv_event_t *e)
+{
+    show_ntp();
+}
+
 void ui_show_clock(void)
 {
     lv_obj_t *scr = ui_screen();
@@ -438,10 +447,113 @@ void ui_show_clock(void)
     lv_obj_align(s_clock_date, LV_ALIGN_TOP_MID, 0, TITLE_H + 64);
     s_clock_note = ui_label(scr, &lv_font_montserrat_12, COL_WARN_TEXT, "The unit's clock needs attention.");
     lv_obj_align(s_clock_note, LV_ALIGN_TOP_MID, 0, TITLE_H + 96);
+    lv_obj_t *ntp = ui_button(scr, "Network time", false, ntp_open_cb, NULL);
+    lv_obj_set_size(ntp, SCR_W - 24, 32);
+    lv_obj_set_style_bg_color(ntp, COL_PANEL, 0);
+    lv_obj_set_pos(ntp, 12, TITLE_H + 110);
     lv_obj_t *row = ui_bottom_buttons(scr, "Set time", set_time_cb, "Set date", set_date_cb, COL_ACCENT);
     lv_obj_t *left = lv_obj_get_child(row, 0);
     lv_obj_set_style_bg_color(left, COL_BG, 0);
     ui_load(scr, SCR_SUB, clock_refresh);
+}
+
+/* ---------------------------------------------------------------- network time */
+
+static lv_obj_t *s_ntp_info;
+static void show_zones(void);
+
+static void ntp_refresh(const mvhr_state_t *st)
+{
+    const settings_t *s = settings_get();
+    lv_label_set_text(s_row_a.value, s->ntp_on ? "On" : "Off");
+    char off[16];
+    tz_format_offset(off, sizeof(off), s->tz_std_x10);
+    int z = tz_find(s->tz_std_x10, s->dst_rule);
+    if (z >= 0) {
+        lv_label_set_text_fmt(s_row_b.sub, "%s  %s%s", tz_get(z)->name, off, tz_get(z)->rule == 4 ? "" : ", summer time");
+    } else {
+        lv_label_set_text_fmt(s_row_b.sub, "Custom: %s, rule %d", off, s->dst_rule);
+    }
+    char text[128];
+    autoclock_ntp_describe(text, sizeof(text));
+    lv_label_set_text(s_ntp_info, text);
+}
+
+static void ntp_toggle_cb(lv_event_t *e)
+{
+    const settings_t *s = settings_get();
+    autoclock_ntp_configure(!s->ntp_on, s->tz_std_x10, s->dst_rule);
+    mvhr_state_t st;
+    mvhr_get_state(&st);
+    ntp_refresh(&st);
+}
+
+static void ntp_zone_cb(lv_event_t *e)
+{
+    show_zones();
+}
+
+static void ntp_now_cb(lv_event_t *e)
+{
+    autoclock_ntp_check_now();
+}
+
+static void show_ntp(void)
+{
+    lv_obj_t *scr = ui_screen();
+    ui_title_bar(scr, "Network time", ui_show_clock);
+    row_create(&s_row_a, scr, TITLE_H + 4, 44, &ic_wifi_20, "Network time", NULL, "-", ntp_toggle_cb, NULL);
+    row_create(&s_row_b, scr, TITLE_H + 52, 52, NULL, "Time zone", "-", NULL, NULL, NULL);
+    lv_obj_add_flag(s_row_b.row, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(s_row_b.row, ntp_zone_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_align(ui_label(s_row_b.row, &lv_font_montserrat_14, COL_MUTED, LV_SYMBOL_RIGHT), LV_ALIGN_RIGHT_MID, -4, 0);
+    s_ntp_info = ui_label(scr, &lv_font_montserrat_12, COL_TEXT2, "");
+    lv_obj_set_width(s_ntp_info, SCR_W - 24);
+    lv_obj_set_pos(s_ntp_info, 12, TITLE_H + 114);
+    ui_bottom_buttons(scr, NULL, NULL, "Check now", ntp_now_cb, COL_ACCENT);
+    ui_load(scr, SCR_SUB, ntp_refresh);
+}
+
+/* the list of time zones: tap one to choose it */
+
+static void zone_pick_cb(lv_event_t *e)
+{
+    const tz_zone_t *z = tz_get((int)(intptr_t)lv_event_get_user_data(e));
+    if (z) {
+        autoclock_ntp_configure(settings_get()->ntp_on, z->tz_std_x10, z->rule);
+    }
+    show_ntp();
+}
+
+static void show_zones(void)
+{
+    lv_obj_t *scr = ui_screen();
+    ui_title_bar(scr, "Time zone", show_ntp);
+    lv_obj_t *list = ui_box(scr);
+    lv_obj_set_size(list, SCR_W, SCR_H - TITLE_H);
+    lv_obj_set_pos(list, 0, TITLE_H);
+    lv_obj_add_flag(list, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(list, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(list, LV_SCROLLBAR_MODE_AUTO);
+    int current = tz_find(settings_get()->tz_std_x10, settings_get()->dst_rule);
+    lv_obj_t *current_row = NULL;
+    for (int i = 0; i < tz_count(); i++) {
+        row_t r;
+        row_create(&r, list, i * 36, 36, NULL, tz_get(i)->name, NULL, NULL, NULL, NULL);
+        char off[16];
+        tz_format_offset(off, sizeof(off), tz_get(i)->tz_std_x10);
+        lv_obj_align(ui_label(r.row, &lv_font_montserrat_14, i == current ? COL_ACCENT : COL_TEXT2, off), LV_ALIGN_RIGHT_MID, -4, 0);
+        if (i == current) {
+            lv_obj_set_style_text_color(r.title, COL_ACCENT, 0);
+            current_row = r.row;
+        }
+        lv_obj_add_flag(r.row, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(r.row, zone_pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+    }
+    ui_load(scr, SCR_SUB, NULL);
+    if (current_row) {
+        lv_obj_scroll_to_view(current_row, LV_ANIM_OFF);
+    }
 }
 
 /* ---------------------------------------------------------------- counters / filter */
@@ -528,7 +640,9 @@ static void fmt_duration(char *out, size_t size, uint16_t s)
     }
 }
 
-static row_t s_row_ha, s_row_fw;
+static const uint8_t s_dim_pct_steps[] = {1, 5, 10, 25, 50};
+
+static row_t s_row_ha, s_row_fw, s_row_dl, s_row_off;
 static bool s_show_password;
 
 static void device_refresh(const mvhr_state_t *st)
@@ -564,6 +678,9 @@ static void device_refresh(const mvhr_state_t *st)
     char buf[16];
     fmt_duration(buf, sizeof(buf), settings_get()->dim_timeout_s);
     lv_label_set_text(s_row_b.value, buf);
+    lv_label_set_text_fmt(s_row_dl.value, "%u%%", settings_get()->dim_pct);
+    int off = settings_get()->outdoor_offset_x10;
+    lv_label_set_text_fmt(s_row_off.value, "%c%d.%d", off < 0 ? '-' : '+', abs(off) / 10, abs(off) % 10);
     fmt_duration(buf, sizeof(buf), settings_get()->screen_timeout_s);
     lv_label_set_text(s_row_c.value, buf);
     if (s_show_password) {
@@ -612,6 +729,34 @@ static void dim_cb(lv_event_t *e)
     device_refresh(&st);
 }
 
+static void outdoor_offset_set(int x10)
+{
+    settings_t s = *settings_get();
+    s.outdoor_offset_x10 = (int16_t)x10;
+    settings_save(&s);
+    mvhr_set_outdoor_offset((int16_t)x10);
+}
+
+static void outdoor_offset_cb(lv_event_t *e)
+{
+    ui_edit_tenths("Outdoor temp offset", "Added to the outdoor temperature (degrees C)", settings_get()->outdoor_offset_x10,
+                   -MVHR_OUTDOOR_OFFSET_MAX_X10, MVHR_OUTDOOR_OFFSET_MAX_X10, 1, outdoor_offset_set, ui_show_device);
+}
+
+static void dim_level_cb(lv_event_t *e)
+{
+    settings_t s = *settings_get();
+    size_t n = sizeof(s_dim_pct_steps), i = 0;
+    while (i < n && s_dim_pct_steps[i] != s.dim_pct) {
+        i++;
+    }
+    s.dim_pct = s_dim_pct_steps[(i + 1) % n];
+    settings_save(&s);
+    mvhr_state_t st;
+    mvhr_get_state(&st);
+    device_refresh(&st);
+}
+
 static void off_cb(lv_event_t *e)
 {
     settings_t s = *settings_get();
@@ -620,6 +765,173 @@ static void off_cb(lv_event_t *e)
     mvhr_state_t st;
     mvhr_get_state(&st);
     device_refresh(&st);
+}
+
+/* ---------------------------------------------------------------- fan speeds (read only) */
+
+/* The unit's installer config block (cmd 0x0F, see mvhr_decode.c): 16-bit big-endian fan PWM values, 0..4095 for
+   0..100 %, intake at bytes 8/10/12 and exhaust at 14/16/18 for speeds 1..3, frost stall speed at 20, holiday
+   reduction at 47 (0..1000 = 0.0..100.0 %). */
+#define CFG_FAN_MIN_LEN 49
+
+static lv_obj_t *s_fs_name[3], *s_fs_in[3], *s_fs_out[3], *s_fs_stall, *s_fs_holiday, *s_fs_hint;
+
+static uint16_t cfg_u16(const mvhr_state_t *st, int at)
+{
+    return (uint16_t)((st->cfg[at] << 8) | st->cfg[at + 1]);
+}
+
+static void fmt_pwm(char *out, size_t size, uint16_t raw)
+{
+    unsigned t = ((unsigned)raw * 1000U + 2048U) / 4096U;    /* tenths of a percent */
+    snprintf(out, size, "%u.%u %%", t / 10, t % 10);
+}
+
+static void fan_speeds_refresh(const mvhr_state_t *st)
+{
+    bool ok = st->cfg_len >= CFG_FAN_MIN_LEN && st->cfg[0] == 0x31;
+    char buf[16];
+    for (int i = 0; i < 3; i++) {
+        if (ok) {
+            fmt_pwm(buf, sizeof(buf), cfg_u16(st, 8 + 2 * i));
+            lv_label_set_text(s_fs_in[i], buf);
+            fmt_pwm(buf, sizeof(buf), cfg_u16(st, 14 + 2 * i));
+            lv_label_set_text(s_fs_out[i], buf);
+        } else {
+            lv_label_set_text(s_fs_in[i], "-");
+            lv_label_set_text(s_fs_out[i], "-");
+        }
+        lv_obj_set_style_text_color(s_fs_name[i], st->fan_speed == i + 1 ? COL_ACCENT : COL_TEXT, 0);
+    }
+    if (ok) {
+        fmt_pwm(buf, sizeof(buf), cfg_u16(st, 20));
+        lv_label_set_text(s_fs_stall, buf);
+        lv_label_set_text_fmt(s_fs_holiday, "%u.%u %%", cfg_u16(st, 47) / 10, cfg_u16(st, 47) % 10);
+    } else {
+        lv_label_set_text(s_fs_stall, "-");
+        lv_label_set_text(s_fs_holiday, "-");
+    }
+    lv_label_set_text(s_fs_hint, ok ? "Tap a value to change it."
+                                    : "Waiting for the unit's settings...");
+}
+
+/* Edit one value: whole percent in the editor, then a confirmation, then the unit's config block is rewritten */
+static int s_fan_idx, s_fan_pct;
+static bool s_fan_chosen;
+static char s_fan_title[32];
+
+static void fan_apply_cb(lv_event_t *e)
+{
+    uint16_t duty[6] = {0};
+    duty[s_fan_idx] = (uint16_t)(s_fan_pct * 10);
+    mvhr_set_fan_duties(duty, 1u << s_fan_idx);     /* refused only for a bad value, which the editor can't give */
+    ui_show_fan_speeds();
+}
+
+static void fan_cancel_cb(lv_event_t *e)
+{
+    ui_show_fan_speeds();
+}
+
+static void fan_set(int pct)
+{
+    s_fan_pct = pct;
+    s_fan_chosen = true;
+}
+
+/* The editor calls this after Set and after Cancel: ask before writing, or just go back */
+static void fan_after_edit(void)
+{
+    if (!s_fan_chosen) {
+        ui_show_fan_speeds();
+        return;
+    }
+    s_fan_chosen = false;
+    mvhr_state_t st;
+    mvhr_get_state(&st);
+    char in[3][12], out[3][12], was[12];
+    for (int i = 0; i < 3; i++) {
+        fmt_pwm(in[i], sizeof(in[i]), cfg_u16(&st, 8 + 2 * i));
+        fmt_pwm(out[i], sizeof(out[i]), cfg_u16(&st, 14 + 2 * i));
+    }
+    fmt_pwm(was, sizeof(was), cfg_u16(&st, 8 + 2 * s_fan_idx));
+    char text[220];
+    snprintf(text, sizeof(text),
+             "Intake %.*s / %.*s / %.*s %%\nExhaust %.*s / %.*s / %.*s %%\n(speeds 1 / 2 / 3)\n%s: %s to %d %%",
+             (int)strlen(in[0]) - 2, in[0], (int)strlen(in[1]) - 2, in[1], (int)strlen(in[2]) - 2, in[2],
+             (int)strlen(out[0]) - 2, out[0], (int)strlen(out[1]) - 2, out[1], (int)strlen(out[2]) - 2, out[2],
+             s_fan_title, was, s_fan_pct);
+    lv_obj_t *scr = ui_screen();
+    ui_title_bar(scr, "Fan speed balance", NULL);
+    lv_obj_t *col = ui_box(scr);
+    lv_obj_set_size(col, SCR_W - 24, LV_SIZE_CONTENT);
+    lv_obj_set_pos(col, 12, TITLE_H + 6);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_row(col, 4, 0);
+    lv_obj_t *warn = ui_label(col, &lv_font_montserrat_14, COL_FAIL_TEXT,
+                              "You are changing the fan speed balance. Write down the original settings first:");
+    lv_obj_set_width(warn, LV_PCT(100));
+    lv_obj_t *t = ui_label(col, &lv_font_montserrat_14, COL_TEXT, text);
+    lv_obj_set_width(t, LV_PCT(100));
+    ui_bottom_buttons(scr, "Cancel", fan_cancel_cb, "Apply", fan_apply_cb, COL_WARN);
+    ui_load(scr, SCR_EDIT, NULL);
+}
+
+static void fan_edit_cb(lv_event_t *e)
+{
+    mvhr_state_t st;
+    mvhr_get_state(&st);
+    if (!st.online || st.cfg_len < CFG_FAN_MIN_LEN || st.cfg[0] != 0x31) {
+        return;     /* nothing to base a change on yet */
+    }
+    s_fan_idx = (int)(intptr_t)lv_event_get_user_data(e);
+    unsigned t = ((unsigned)cfg_u16(&st, 8 + 2 * s_fan_idx) * 1000U + 2048U) / 4096U;
+    int pct = (int)((t + 5) / 10);
+    snprintf(s_fan_title, sizeof(s_fan_title), "%s fan, speed %d", s_fan_idx < 3 ? "Intake" : "Exhaust",
+             s_fan_idx % 3 + 1);
+    s_fan_chosen = false;
+    ui_edit_value(s_fan_title, "Fan speed in % of full speed", pct < 10 ? 10 : pct, 10, 100, 1, "%d %%", fan_set,
+                  fan_after_edit);
+}
+
+void ui_show_fan_speeds(void)
+{
+    lv_obj_t *scr = ui_screen();
+    ui_title_bar(scr, "Fan speeds", ui_show_device);
+    static const char *const names[3] = {"Speed 1", "Speed 2", "Speed 3"};
+    const int in_x = 110, out_x = 214, w = 94;
+    const char *heads[2] = {"Intake", "Exhaust"};
+    for (int c = 0; c < 2; c++) {
+        lv_obj_t *h = ui_label(scr, &lv_font_montserrat_12, COL_TEXT2, heads[c]);
+        lv_obj_set_width(h, w);
+        lv_obj_set_style_text_align(h, LV_TEXT_ALIGN_RIGHT, 0);
+        lv_obj_set_pos(h, c ? out_x : in_x, TITLE_H + 8);
+    }
+    for (int i = 0; i < 3; i++) {
+        int y = TITLE_H + 28 + i * 28;
+        s_fs_name[i] = ui_label(scr, &lv_font_montserrat_14, COL_TEXT, names[i]);
+        lv_obj_set_pos(s_fs_name[i], 12, y);
+        lv_obj_t **cell[2] = {&s_fs_in[i], &s_fs_out[i]};
+        for (int c = 0; c < 2; c++) {
+            /* a button per value: tap to change it */
+            lv_obj_t *b = ui_button(scr, "-", false, fan_edit_cb, (void *)(intptr_t)(3 * c + i));
+            lv_obj_set_size(b, w - 2, 26);
+            lv_obj_set_style_bg_color(b, COL_PANEL, 0);
+            lv_obj_set_pos(b, (c ? out_x : in_x) + 2, y - 5);
+            *cell[c] = lv_obj_get_child(b, 0);
+            lv_obj_set_style_text_font(*cell[c], &lv_font_montserrat_14, 0);
+        }
+    }
+    s_fs_stall = kv_row(scr, TITLE_H + 124, "Frost stall speed");
+    s_fs_holiday = kv_row(scr, TITLE_H + 152, "Holiday reduction");
+    s_fs_hint = ui_label(scr, &lv_font_montserrat_12, COL_TEXT2, "");
+    lv_obj_set_pos(s_fs_hint, 12, TITLE_H + 184);
+    ui_load(scr, SCR_SUB, fan_speeds_refresh);
+}
+
+static void fan_speeds_cb(lv_event_t *e)
+{
+    ui_show_fan_speeds();
 }
 
 static void wifi_reset(void)
@@ -654,11 +966,18 @@ void ui_show_device(void)
     row_create(&theme, list, 96, 46, &ic_moon_20, "Dark theme", NULL, NULL, NULL, NULL);
     lv_obj_set_state(themed_switch(theme.row, theme_cb), LV_STATE_CHECKED, ui_theme_dark());
     row_create(&s_row_b, list, 142, 46, &ic_sun_20, "Dim after", NULL, "-", dim_cb, NULL);
-    row_create(&s_row_c, list, 188, 46, &ic_screen_off_20, "Screen off after", NULL, "-", off_cb, NULL);
+    row_create(&s_row_dl, list, 188, 46, &ic_sun_20, "Dim level", NULL, "-", dim_level_cb, NULL);
+    row_create(&s_row_c, list, 234, 46, &ic_screen_off_20, "Screen off after", NULL, "-", off_cb, NULL);
 
     char title[48];
     snprintf(title, sizeof(title), "Firmware %s", esp_app_get_description()->version);
-    row_create(&s_row_fw, list, 234, 52, &ic_info_20, title, "", NULL, NULL, NULL);
+    row_t fans;
+    row_create(&fans, list, 280, 46, &ic_fan_26, "Fan speeds", "Intake and exhaust per speed", NULL, NULL, NULL);
+    lv_obj_add_flag(fans.row, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(fans.row, fan_speeds_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_align(ui_label(fans.row, &lv_font_montserrat_14, COL_MUTED, LV_SYMBOL_RIGHT), LV_ALIGN_RIGHT_MID, -4, 0);
+    row_create(&s_row_off, list, 326, 46, &ic_thermo_16, "Outdoor temp offset", NULL, "-", outdoor_offset_cb, NULL);
+    row_create(&s_row_fw, list, 372, 52, &ic_info_20, title, "", NULL, NULL, NULL);
     lv_obj_set_style_border_width(s_row_fw.row, 0, 0);
     lv_obj_add_flag(s_row_fw.row, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(s_row_fw.row, password_cb, LV_EVENT_CLICKED, NULL);

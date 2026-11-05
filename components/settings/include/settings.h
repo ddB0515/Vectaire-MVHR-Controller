@@ -29,8 +29,13 @@ typedef struct {
     char device_name[33];           /* shown in HA, default "Vectaire MVHR" */
     uint16_t mqtt_interval_s;       /* HA sensor readings every this long (changes go out at once) */
     uint8_t backlight_pct;
+    uint8_t dim_pct;                /* backlight level while dimmed */
     uint16_t dim_timeout_s;         /* no touch for this long: dim the backlight; 0 = never */
     uint16_t screen_timeout_s;      /* no touch for this long: backlight off; 0 = never */
+    int16_t outdoor_offset_x10;     /* added to the outdoor temperature shown and sent to Home Assistant, 0.1 C */
+    bool ntp_on;                    /* set the unit's clock from network time (autoclock) */
+    int16_t tz_std_x10;             /* standard (winter) time offset from UTC in tenths of an hour, -120..+140 */
+    uint8_t dst_rule;               /* summer time rule for network time: dst_rule_t, 4 = none (standard time all year) */
     bool dark_theme;                /* display colours */
     bool unit_simulator;            /* run against the built-in simulated unit */
     char ota_password[17];          /* for firmware uploads over Wi-Fi; generated on first start */

@@ -110,9 +110,21 @@ int main(void)
     xfer(MVHR_CMD_STATUS, NULL, 0, 1000);
     CHECK((st.status & 0x0F) == MVHR_FUNC_NIGHT_INHIBIT);
 
+    /* installer config write: the whole 49-byte block, here with intake speed 2 changed to 55.0 % */
+    uint8_t cfg[49];
+    CHECK(xfer(MVHR_CMD_CONFIG_READ, NULL, 0, 0) == 49);   /* read fresh, as the firmware does before a write */
+    memcpy(cfg, st.cfg, sizeof(cfg));
+    cfg[10] = (uint8_t)((550 * 4096 / 1000) >> 8);
+    cfg[11] = (uint8_t)((550 * 4096 / 1000) & 0xFF);
+    CHECK(xfer(MVHR_CMD_CONFIG_WRITE, cfg, 4, 0) == -1);            /* a short block is refused */
+    CHECK(xfer(MVHR_CMD_CONFIG_WRITE, cfg, sizeof(cfg), 0) == 0);
+    CHECK(xfer(MVHR_CMD_CONFIG_READ, NULL, 0, 0) == 49);
+    CHECK(((st.cfg[10] << 8) | st.cfg[11]) == 550 * 4096 / 1000);
+    CHECK(((st.cfg[8] << 8) | st.cfg[9]) == 30 * 4096 / 100);       /* the others are untouched */
+    CHECK(st.night_enabled && st.night_start_min == 23 * 60);
+
     /* never answered */
     uint8_t blob[67] = {0x43};
-    CHECK(xfer(0x10, blob, sizeof(blob), 0) == -1);
     CHECK(xfer(0x13, NULL, 0, 0) == -1);
     for (int cmd = 0xB0; cmd <= 0xB2; cmd++) {
         CHECK(xfer((uint8_t)cmd, blob, 4, 0) == -1);

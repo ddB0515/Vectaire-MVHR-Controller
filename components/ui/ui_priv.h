@@ -90,6 +90,7 @@ void ui_show_timers(void);
 void ui_show_clock(void);
 void ui_show_counters(void);
 void ui_show_device(void);
+void ui_show_fan_speeds(void);
 void ui_show_alarm(uint16_t bit);
 void ui_show_fire(void);
 
@@ -97,6 +98,9 @@ void ui_show_fire(void);
 typedef void (*ui_value_set_fn)(int value);
 void ui_edit_value(const char *title, const char *prompt, int value, int min, int max, int step, const char *fmt,
                    ui_value_set_fn on_set, ui_back_fn back);
+
+void ui_edit_tenths(const char *title, const char *prompt, int value_x10, int min_x10, int max_x10, int step_x10,
+                    ui_value_set_fn on_set, ui_back_fn back);
 
 #define UI_MAX_FIELDS 3
 typedef void (*ui_fields_set_fn)(const int *values);

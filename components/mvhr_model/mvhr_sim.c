@@ -240,6 +240,12 @@ int mvhr_sim_reply(uint8_t cmd, const uint8_t *d, uint8_t len, uint8_t *out, uin
     case MVHR_CMD_CONFIG_READ:
         memcpy(out, s.cfg, CFG_LEN);
         return CFG_LEN;
+    case MVHR_CMD_CONFIG_WRITE:
+        if (len < CFG_LEN) {
+            return -1;
+        }
+        memcpy(s.cfg, d, CFG_LEN);
+        return 0;
     case MVHR_CMD_BYPASS:
         if (len < 1) {
             return -1;
@@ -263,7 +269,7 @@ int mvhr_sim_reply(uint8_t cmd, const uint8_t *d, uint8_t len, uint8_t *out, uin
         out[1] = 3;
         return 2;
     default:
-        /* includes 0x10 config write, 0x13 fan test and the 0xB0-0xB2 bootloader frames: never acknowledged */
+        /* includes 0x13 fan test and the 0xB0-0xB2 bootloader frames: never acknowledged */
         return -1;
     }
 }

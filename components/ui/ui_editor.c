@@ -1,5 +1,6 @@
 /* Generic editors: one value with arrows, several spin fields (time, date), and a yes/no confirmation. */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "ui_priv.h"
@@ -8,6 +9,7 @@
 
 static struct {
     int value, min, max, step, repeats;
+    bool tenths;                /* value is in tenths and shown as +1.3 (no fmt) */
     const char *fmt;
     ui_value_set_fn on_set;
     ui_back_fn back;
@@ -16,7 +18,12 @@ static struct {
 
 static void value_show(void)
 {
-    lv_label_set_text_fmt(s_ed.label, s_ed.fmt, s_ed.value);
+    if (s_ed.tenths) {
+        lv_label_set_text_fmt(s_ed.label, "%c%d.%d", s_ed.value < 0 ? '-' : '+', abs(s_ed.value) / 10,
+                              abs(s_ed.value) % 10);
+    } else {
+        lv_label_set_text_fmt(s_ed.label, s_ed.fmt, s_ed.value);
+    }
 }
 
 static void value_step_cb(lv_event_t *e)
@@ -63,6 +70,7 @@ void ui_edit_value(const char *title, const char *prompt, int value, int min, in
     s_ed.max = max;
     s_ed.step = step;
     s_ed.fmt = fmt;
+    s_ed.tenths = false;
     s_ed.on_set = on_set;
     s_ed.back = back;
 
@@ -94,6 +102,15 @@ void ui_edit_value(const char *title, const char *prompt, int value, int min, in
     ui_bottom_buttons(scr, "Cancel", value_cancel_cb, "Set", value_set_cb, COL_ACCENT);
     value_show();
     ui_load(scr, SCR_EDIT, NULL);
+}
+
+/* Same editor for a value in tenths (e.g. +1.3), step in tenths */
+void ui_edit_tenths(const char *title, const char *prompt, int value_x10, int min_x10, int max_x10, int step_x10,
+                    ui_value_set_fn on_set, ui_back_fn back)
+{
+    ui_edit_value(title, prompt, value_x10, min_x10, max_x10, step_x10, "", on_set, back);
+    s_ed.tenths = true;
+    value_show();
 }
 
 /* ---------------------------------------------------------------- several fields */

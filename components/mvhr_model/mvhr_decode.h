@@ -20,6 +20,7 @@
 #define MVHR_CMD_HUMID_WRITE    0x0D
 #define MVHR_CMD_FAN            0x0E
 #define MVHR_CMD_CONFIG_READ    0x0F
+#define MVHR_CMD_CONFIG_WRITE   0x10    /* the whole 49-byte installer config block */
 #define MVHR_CMD_BYPASS         0x11
 #define MVHR_CMD_NIGHT          0x12
 #define MVHR_CMD_HOLIDAY        0x15

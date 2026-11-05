@@ -55,7 +55,18 @@ a{color:var(--accent)}
 </div>
 
 <div class="card">
+  <h2>Unit clock</h2>
+  <div class="kv"><span>Time and date</span><span id="ck">-</span></div>
+  <div class="kv"><span>Time format</span><span id="ckf">-</span></div>
+  <div class="kv"><span>Date format</span><span id="ckd">-</span></div>
+  <div class="kv"><span>Time zone list number</span><span id="ckr">-</span></div>
+  <div class="kv"><span>UTC offset byte</span><span id="cko">-</span></div>
+  <p class="meta">Raw values from the unit's clock block. The top bit of the offset byte is possibly the daylight saving flag (not confirmed): to find out, note this byte, switch daylight saving on or off in the original panel's clock settings, and compare.</p>
+</div>
+
+<div class="card">
   <h2>System</h2>
+  <div class="kv"><span>Outdoor temperature (unit / offset / shown)</span><span id="otemp">-</span></div>
   <div class="kv"><span>Firmware</span><span id="fw">-</span></div>
   <div class="kv"><span>Hardware</span><span id="hw">-</span></div>
   <div class="kv"><span>Last restart</span><span id="reset">-</span></div>
@@ -102,6 +113,13 @@ async function poll(){
     set('lvl',b.rx_high_pct<0?'simulated':b.rx_high_pct===100?'high (bus present)':b.rx_high_pct===0?'low (no bus voltage?)':b.rx_high_pct+' % high (traffic)',
         b.rx_high_pct===0?'err':'');
     $('att').textContent=(b.attempts||'').split(' || ').filter(x=>x).join('\n')||'-';
+    const k=s.clock,p2=n=>String(n).padStart(2,'0'),hx=n=>'0x'+n.toString(16).toUpperCase().padStart(2,'0');
+    set('ck',k?`${p2(k.h)}:${p2(k.mi)}  ${p2(k.d)}/${p2(k.mo)}/${k.y}`:'-');
+    set('ckf',k?(k.f24===1?'24 hour':'12 hour')+` (raw ${k.f24})`:'-');
+    set('ckd',k?(['MM/DD/YYYY','DD/MM/YYYY','YYYY/MM/DD'][k.datefmt]||'unknown')+` (raw ${k.datefmt})`:'-');
+    set('ckr',k?k.region:'-');
+    set('cko',k?`${hx(k.offset)} = ${k.offset.toString(2).padStart(8,'0')}  (top bit ${k.offset>>7}, low 7 bits ${k.offset&127})`:'-');
+    set('otemp',s.t_out_raw==null?'-':`${s.t_out_raw.toFixed(1)} / ${(s.out_offset>=0?'+':'')+s.out_offset.toFixed(1)} / ${s.t_out.toFixed(1)} °C`);
     set('fw',d.fw||'-');set('hw',d.hw||'-');
     set('reset',REASONS[c.reset_reason]||c.reset_reason,c.reset_reason==='panic'||/wdt|brownout/.test(c.reset_reason)?'err':'');
     set('up',dur(c.uptime_s));

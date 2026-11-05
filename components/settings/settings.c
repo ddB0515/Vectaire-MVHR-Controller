@@ -26,6 +26,8 @@ static void defaults(settings_t *s)
     s->backlight_pct = 80;
     s->screen_timeout_s = 300;
     s->dim_timeout_s = 60;
+    s->dim_pct = 10;
+    s->dst_rule = 4;            /* none: network time keeps standard time all year until a rule is chosen */
 }
 
 /* 12 characters without look-alikes (0/O, 1/l/I) */
@@ -92,6 +94,22 @@ esp_err_t settings_init(void)
         if (nvs_get_u16(h, "dim", &u16) == ESP_OK) {
             s_settings.dim_timeout_s = u16;
         }
+        if (nvs_get_u8(h, "dim_pct", &u8) == ESP_OK && u8 >= 1 && u8 <= 100) {
+            s_settings.dim_pct = u8;
+        }
+        int16_t i16;
+        if (nvs_get_i16(h, "out_off", &i16) == ESP_OK && i16 >= -100 && i16 <= 100) {
+            s_settings.outdoor_offset_x10 = i16;
+        }
+        if (nvs_get_u8(h, "ntp_on", &u8) == ESP_OK) {
+            s_settings.ntp_on = u8;
+        }
+        if (nvs_get_i16(h, "tz_x10", &i16) == ESP_OK && i16 >= -120 && i16 <= 140) {
+            s_settings.tz_std_x10 = i16;
+        }
+        if (nvs_get_u8(h, "dst_rule", &u8) == ESP_OK && u8 <= 4) {
+            s_settings.dst_rule = u8;
+        }
         if (nvs_get_u8(h, "dark", &u8) == ESP_OK) {
             s_settings.dark_theme = u8;
         }
@@ -131,6 +149,11 @@ esp_err_t settings_save(const settings_t *s)
     err |= nvs_set_u8(h, "backlight", s->backlight_pct);
     err |= nvs_set_u16(h, "timeout", s->screen_timeout_s);
     err |= nvs_set_u16(h, "dim", s->dim_timeout_s);
+    err |= nvs_set_u8(h, "dim_pct", s->dim_pct);
+    err |= nvs_set_i16(h, "out_off", s->outdoor_offset_x10);
+    err |= nvs_set_u8(h, "ntp_on", s->ntp_on);
+    err |= nvs_set_i16(h, "tz_x10", s->tz_std_x10);
+    err |= nvs_set_u8(h, "dst_rule", s->dst_rule);
     err |= nvs_set_u8(h, "sim", s->unit_simulator);
     err |= nvs_set_u8(h, "dark", s->dark_theme);
     err |= nvs_set_str(h, "ota_pass", s->ota_password);

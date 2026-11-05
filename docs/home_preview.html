@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home screen preview</title>
+<!--
+  Approximate mock of components/ui/ui_home.c (320x240). Positions, sizes and palette
+  come from the C code; fonts are Montserrat-like but not pixel-exact. Not a render of
+  the real LVGL output, so check on the device.
+-->
+<style>
+  body { font-family: system-ui, sans-serif; margin: 16px; background: #888; color: #111; }
+  .ctl { margin-bottom: 12px; display: flex; gap: 12px; flex-wrap: wrap; font-size: 14px; }
+  .ctl label { background: #fff; padding: 4px 8px; border-radius: 4px; }
+  #scr { position: relative; width: 320px; height: 240px; overflow: hidden; font-family: Montserrat, "Segoe UI", system-ui, sans-serif;
+         --bg:#fff; --panel:#f3f6f8; --line:#dfe5ea; --border:#c9d3db; --house:#9aa7b1; --text:#1d2730; --muted:#5f6b75; --accent:#1e78c8; --hot:#d2552b; --ok:#2e7d32; }
+  #scr.dark { --bg:#11181f; --panel:#1a232c; --line:#2b3640; --border:#3a4753; --house:#5a6a77; --text:#e4eaef; --muted:#93a1ad; --accent:#2f86d2; --hot:#f07a50; --ok:#4cc38a; }
+  #scr { background: var(--bg); color: var(--text); }
+  .abs { position: absolute; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  #in { left: 32px; top: 93px; width: 140px; gap: 2px; }          /* body y 49 + 33 */
+  #out { left: 200px; top: 59px; width: 110px; height: 90px; padding-left: 8px; gap: 3px;
+         border-left: 1px solid var(--line); box-sizing: content-box; }   /* body y 49 + 10 */
+  .t28 { font-size: 28px; line-height: 32px; }
+  .t20 { font-size: 20px; line-height: 23px; }
+  .t18 { font-size: 18px; line-height: 21px; }
+  .t22 { font-size: 22px; line-height: 26px; }
+  .t14 { font-size: 14px; line-height: 17px; }
+  .t12 { font-size: 12px; line-height: 15px; }
+  .t10 { font-size: 10px; line-height: 12px; color: var(--muted); }
+  .chip { background: var(--accent); color: #fff; border-radius: 8px; width: 100%; height: 46px; display: flex; align-items: center; justify-content: center; text-align: center; box-sizing: border-box; padding: 0 5px; font-size: 14px; line-height: 17px; text-transform: uppercase; }
+  .btn { position: absolute; top: 7px; height: 46px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg);
+         display: flex; align-items: center; justify-content: center; box-sizing: border-box; font-size: 18px; }
+  .hide { display: none; }
+  .b { font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="ctl">
+  <label>Wi-Fi <select id="wifistate"><option value="up">Connected</option><option value="down">Not connected (hidden)</option></select></label>
+  <label>Home Assistant <select id="hastate"><option value="up">Connected</option><option value="down">Not connected (hidden)</option></select></label>
+  <label><input type="checkbox" id="dark"> Dark</label>
+  <label><input type="checkbox" id="pill" checked> Function pill</label>
+  <label>Airflow
+    <select id="flow"><option>Heat recovery</option><option>Bypass</option><option>Intake motor off</option></select></label>
+  <label>Function <select id="pilltext"><option value="Normal">Normal (no pill)</option><option>Boost starting</option><option selected>Boost active</option><option>Overrun</option><option>Humidity boost</option><option>CO2 boost</option><option>Timed boost</option><option>Purge</option><option>Purge ending</option><option>Night mode</option><option>Holiday</option><option>Frost protection</option></select></label>
+</div>
+
+<div id="scr">
+  <!-- header -->
+  <div class="abs" style="left:10px;top:9px;display:flex;align-items:flex-end;gap:10px">
+    <span style="font-size:18px;line-height:22px">08:12</span><span class="t12" style="color:var(--muted);padding-bottom:2px">Thu 5 Nov</span>
+  </div>
+  <svg id="ha" class="abs" style="left:224px;top:9px" width="18" height="18" viewBox="0 0 24 24"><path fill="#18bcf2" stroke="none" d="M10.9 2.2Q12 1.2 13.1 2.2L22.2 11.2Q23.4 12.5 23.4 14.2L23.4 21Q23.4 22.6 21.8 22.6L2.2 22.6Q.6 22.6 .6 21L.6 14.2Q.6 12.5 1.8 11.2Z"/><g fill="#f2f4f9" stroke="#f2f4f9" stroke-width="1.7" stroke-linecap="butt"><path d="M12 8.3V22.6"/><path d="M12.4 19.6L17.7 14.3"/><path d="M11.3 22.6L6.2 17.5"/><circle cx="12" cy="8.3" r="2" stroke="none"/><circle cx="17.7" cy="14.3" r="2" stroke="none"/><circle cx="6.2" cy="17.5" r="2" stroke="none"/></g></svg><svg id="wifi" class="abs" style="left:250px;top:9px" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="2.13" stroke-linecap="round" stroke-linejoin="round"></svg>
+  <div class="abs" style="left:276px;top:0;width:44px;height:36px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center">&#9881;</div>
+  <div class="abs" style="left:0;top:35px;width:320px;height:1px;background:var(--line)"></div>
+
+  <!-- house (body at y 49) -->
+  <svg class="abs" style="left:0;top:49px" width="320" height="118" fill="none" stroke="var(--house)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="12,50 102,8 192,50"/><polyline points="32,41 32,114 172,114 172,41"/>
+  </svg>
+
+  <div id="in" class="abs" style="left:32px;top:68px;width:140px;height:92px;padding-top:9px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;align-items:center">
+    <div class="col" style="gap:1px">
+      <svg id="flowicon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
+      <div id="airflow" class="t14" style="color:var(--muted)">Heat recovery</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;font-size:18px;line-height:21px">
+      <div style="display:flex;align-items:center;gap:2px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13.5a4 4 0 1 0 4 0v-8.5a2 2 0 0 0 -4 0v8.5"/><path d="M10 9h4"/></svg><span>22.9<span style="font-size:9px"> °C</span></span></div>
+      <div style="display:flex;align-items:center;gap:2px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 7.5l4.5-4.5l4.5 4.5a6.4 6.4 0 1 1 -9 0z"/></svg><span>40 %</span></div>
+    </div>
+  </div>
+
+  <div class="abs" style="left:8px;top:42px;width:90px;height:32px"><div class="t12" style="color:var(--muted)">Intake fan:</div><div class="t14">86%</div></div>
+  <div class="abs" style="left:102px;top:42px;width:90px;height:32px;text-align:right"><div class="t12" style="color:var(--muted)">Exhaust fan:</div><div class="t14">90%</div></div>
+
+  <div id="out" class="abs col">
+    <div class="t10">OUTDOOR TEMP</div>
+    <div class="t22">12.2<span style="font-size:12px"> °C</span></div>
+    <div id="chip" class="chip">Boost active</div>
+  </div>
+
+  <!-- footer -->
+  <div class="abs" style="left:0;top:180px;width:320px;height:60px;background:var(--panel);border-top:1px solid var(--line);box-sizing:border-box">
+    <div class="btn" style="left:8px;width:48px">&minus;</div>
+    <div class="abs" style="left:62px;top:7px;width:118px;height:46px;display:flex;align-items:center;justify-content:center;gap:8px">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="var(--accent)" stroke="none"><path d="M10.6 10.4C9.2 8.6 9.6 5.6 11.4 3.6C13 1.8 16.4 1.8 17 4C17.5 6.2 15 7.6 13.4 10.2z"/><path d="M10.6 10.4C9.2 8.6 9.6 5.6 11.4 3.6C13 1.8 16.4 1.8 17 4C17.5 6.2 15 7.6 13.4 10.2z" transform="rotate(90 12 12)"/><path d="M10.6 10.4C9.2 8.6 9.6 5.6 11.4 3.6C13 1.8 16.4 1.8 17 4C17.5 6.2 15 7.6 13.4 10.2z" transform="rotate(180 12 12)"/><path d="M10.6 10.4C9.2 8.6 9.6 5.6 11.4 3.6C13 1.8 16.4 1.8 17 4C17.5 6.2 15 7.6 13.4 10.2z" transform="rotate(270 12 12)"/><path fill-rule="evenodd" d="M12 9.3a2.7 2.7 0 1 0 0 5.4a2.7 2.7 0 1 0 0-5.4zM12 10.85a1.15 1.15 0 1 0 0 2.3a1.15 1.15 0 1 0 0-2.3z"/></svg>
+      <div><div class="t14">Speed 2</div>
+        <div style="display:flex;gap:3px;align-items:flex-end;margin-top:4px">
+          <i style="width:10px;height:6px;background:var(--accent);border-radius:1px"></i>
+          <i style="width:10px;height:9px;background:var(--accent);border-radius:1px"></i>
+          <i style="width:10px;height:12px;background:var(--border);border-radius:1px"></i></div></div>
+    </div>
+    <div class="btn" style="left:186px;width:48px">+</div>
+    <div class="btn" style="left:240px;width:72px;flex-direction:column;gap:1px">
+      <span style="color:var(--accent);font-size:20px;line-height:22px">&#8644;</span><span style="font-size:10px">Auto</span></div>
+  </div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  function upd() {
+    $('scr').classList.toggle('dark', $('dark').checked);
+    $('chip').classList.toggle('hide', !$('pill').checked || $('pilltext').value === 'Normal');   /* normal: no pill, as on the screen */
+    $('chip').textContent = $('pilltext').value;
+    const w = $('wifi');
+    w.style.display = $('wifistate').value === 'up' ? '' : 'none';
+    w.style.stroke = 'var(--accent)';
+    w.innerHTML = '<path d="M12 18h.01"/><path d="M9.2 15.2a4 4 0 0 1 5.6 0"/><path d="M6.4 12.4a8 8 0 0 1 11.2 0"/><path d="M3.5 9.5a12 12 0 0 1 17 0"/>';
+    $('ha').style.display = $('hastate').value === 'up' ? '' : 'none';
+    $('airflow').textContent = $('flow').value;
+    const icons = {
+      'Heat recovery': '<path d="M18.45 7.97A7.6 7.6 0 0 0 9.40 4.86"/><path fill="#000" d="M5.64 6.23L8.20 1.57L10.60 8.15z"/><path d="M5.29 8.43A7.6 7.6 0 0 0 7.11 17.82"/><path fill="#000" d="M10.18 20.39L4.87 20.50L9.36 15.14z"/><path d="M12.27 19.60A7.6 7.6 0 0 0 19.48 13.32"/><path fill="#000" d="M20.18 9.38L22.93 13.93L16.04 12.71z"/>',
+      'Bypass': '<path d="M4 8h16"/><path d="M16 4l4 4l-4 4"/><path d="M20 16H4"/><path d="M8 12l-4 4l4 4"/>',
+      'Intake motor off': '<path d="M4 12h16"/><path d="M14 6l6 6l-6 6"/>' };
+    $('flowicon').innerHTML = icons[$('flow').value];
+    const f = $('flow').value;
+    $('flowicon').style.stroke = f === 'Bypass' ? 'var(--accent)' : f === 'Heat recovery' ? 'var(--hot)' : 'var(--ok)';
+    $('airflow').style.color = f === 'Bypass' ? 'var(--accent)' : f === 'Heat recovery' ? 'var(--hot)' : 'var(--muted)';
+  }
+  document.querySelectorAll('.ctl input,.ctl select').forEach(e => e.addEventListener('input', upd));
+  upd();
+</script>
+</body>
+</html>

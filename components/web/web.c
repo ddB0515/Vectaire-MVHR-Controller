@@ -9,7 +9,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "autoclock.h"
 #include "cJSON.h"
+#include "timezones.h"
 #include "esp_app_desc.h"
 #include "esp_core_dump.h"
 #include "esp_heap_caps.h"
@@ -81,9 +83,11 @@ static esp_err_t state_get(httpd_req_t *req)
     cJSON *o = cJSON_CreateObject();
     cJSON_AddBoolToObject(o, "online", st.online);
     cJSON_AddBoolToObject(o, "simulated", mvhr_is_simulated());
+    cJSON_AddNumberToObject(o, "out_offset", st.outdoor_offset_x10 / 10.0);     /* outdoor temperature offset, C */
     if (st.valid & MVHR_G_STATUS) {
         cJSON_AddNumberToObject(o, "t_in", st.temp_extract_x10 / 10.0);
-        cJSON_AddNumberToObject(o, "t_out", st.temp_supply_x10 / 10.0);
+        cJSON_AddNumberToObject(o, "t_out", st.temp_supply_x10 / 10.0);            /* with the offset */
+        cJSON_AddNumberToObject(o, "t_out_raw", st.temp_supply_raw_x10 / 10.0);    /* as the unit reports it */
         if (st.humidity_x10 <= MVHR_RH_VALID_MAX_X10) {
             cJSON_AddNumberToObject(o, "rh", st.humidity_x10 / 10.0);
         }
@@ -118,6 +122,21 @@ static esp_err_t state_get(httpd_req_t *req)
             cJSON_AddNumberToObject(n, "start", st.night_start_min);
             cJSON_AddNumberToObject(n, "end", st.night_end_min);
         }
+        if (st.cfg_len >= 49 && st.cfg[0] == 0x31) {
+            /* installer fan settings, read only: PWM 0..4095 -> % with one decimal (see ui_settings.c) */
+#define CFG16(at) ((unsigned)((st.cfg[at] << 8) | st.cfg[(at) + 1]))
+#define PWM_PCT(at) ((double)((CFG16(at) * 1000U + 2048U) / 4096U) / 10.0)
+            cJSON *f = cJSON_AddObjectToObject(o, "fans");
+            cJSON *in = cJSON_AddArrayToObject(f, "in"), *out = cJSON_AddArrayToObject(f, "out");
+            for (int i = 0; i < 3; i++) {
+                cJSON_AddItemToArray(in, cJSON_CreateNumber(PWM_PCT(8 + 2 * i)));
+                cJSON_AddItemToArray(out, cJSON_CreateNumber(PWM_PCT(14 + 2 * i)));
+            }
+            cJSON_AddNumberToObject(f, "stall", PWM_PCT(20));
+            cJSON_AddNumberToObject(f, "holiday", CFG16(47) / 10.0);
+#undef PWM_PCT
+#undef CFG16
+        }
     }
     if (st.valid & MVHR_G_COUNTERS) {
         cJSON_AddNumberToObject(o, "filter", st.filter_pct);
@@ -131,6 +150,37 @@ static esp_err_t state_get(httpd_req_t *req)
         cJSON_AddNumberToObject(c, "d", st.clock.day);
         cJSON_AddNumberToObject(c, "mo", st.clock.month);
         cJSON_AddNumberToObject(c, "y", 2000 + st.clock.year);
+        /* the rest of the unit's clock block, raw (for the Diagnostics page): 12/24 h, date format, time zone
+           list index, UTC offset byte (low 7 bits offset, top bit possibly the DST flag) */
+        cJSON_AddNumberToObject(c, "f24", st.clock.format_24h);
+        cJSON_AddNumberToObject(c, "datefmt", st.clock.date_format);
+        cJSON_AddNumberToObject(c, "region", st.clock.region);
+        cJSON_AddNumberToObject(c, "offset", st.clock.utc_offset);
+    }
+    {
+        cJSON *nt = cJSON_AddObjectToObject(o, "ntp");      /* network time: on/off, standard time offset in hours, rule */
+        cJSON_AddBoolToObject(nt, "on", settings_get()->ntp_on);
+        cJSON_AddNumberToObject(nt, "tz", settings_get()->tz_std_x10 / 10.0);
+        cJSON_AddNumberToObject(nt, "rule", settings_get()->dst_rule);      /* 0..3 = a summer time rule, 4 = none */
+        cJSON_AddNumberToObject(nt, "zone", tz_find(settings_get()->tz_std_x10, settings_get()->dst_rule));   /* -1 = not in the list */
+        char text[128];
+        autoclock_ntp_describe(text, sizeof(text));
+        cJSON_AddStringToObject(nt, "text", text);
+    }
+
+    if (httpd_req_get_url_query_len(req) > 0) {
+        char q[32] = "";
+        httpd_req_get_url_query_str(req, q, sizeof(q));
+        if (strstr(q, "zones")) {       /* the time zone list, asked for once when the page loads: [name, offset x10, rule] */
+            cJSON *zl = cJSON_AddArrayToObject(o, "zones");
+            for (int i = 0; i < tz_count(); i++) {
+                cJSON *z = cJSON_CreateArray();
+                cJSON_AddItemToArray(z, cJSON_CreateString(tz_get(i)->name));
+                cJSON_AddItemToArray(z, cJSON_CreateNumber(tz_get(i)->tz_std_x10));
+                cJSON_AddItemToArray(z, cJSON_CreateNumber(tz_get(i)->rule));
+                cJSON_AddItemToArray(zl, z);
+            }
+        }
     }
 
     net_status_t n;
@@ -171,7 +221,7 @@ static bool get_int(const cJSON *root, const char *key, int *out)
 
 /* Body: one or more of {"fan":2, "bypass":"auto|heat|bypass", "holiday":true, "rh_set":60, "boost_delay":60,
    "overrun_min":20, "night":{"on":true,"start":1320,"end":360}, "reset_filter":true,
-   "clock":{"h":12,"mi":30,"d":29,"mo":10,"y":2026}} */
+   "clock":{"h":12,"mi":30,"d":29,"mo":10,"y":2026}, "out_offset":-0.8, "ntp":{"on":true,"zone":12}, "ntp_check":true, "fans":{"in":[30,50,80],"out":[30,50,80]}} */
 static esp_err_t set_post(httpd_req_t *req)
 {
     if (!net_password_ok(req)) {
@@ -233,6 +283,73 @@ static esp_err_t set_post(httpd_req_t *req)
         err |= st.night_known ? mvhr_set_night_inhibition(cJSON_IsBool(on) ? cJSON_IsTrue(on) : st.night_enabled,
                                                           (uint16_t)start, (uint16_t)end)
                               : ESP_ERR_INVALID_STATE;
+        n++;
+    }
+    if (cJSON_IsNumber(j = cJSON_GetObjectItemCaseSensitive(root, "out_offset"))) {
+        /* outdoor temperature offset in degrees, one decimal: saved and applied at once */
+        double x10 = j->valuedouble * 10.0;
+        int r = (int)(x10 < 0 ? x10 - 0.5 : x10 + 0.5);
+        if (r < -MVHR_OUTDOOR_OFFSET_MAX_X10 || r > MVHR_OUTDOOR_OFFSET_MAX_X10) {
+            err |= ESP_ERR_INVALID_ARG;
+        } else {
+            settings_t s = *settings_get();
+            s.outdoor_offset_x10 = (int16_t)r;
+            err |= settings_save(&s);
+            err |= mvhr_set_outdoor_offset((int16_t)r);
+        }
+        n++;
+    }
+    if (cJSON_IsObject(j = cJSON_GetObjectItemCaseSensitive(root, "ntp"))) {
+        const cJSON *on = cJSON_GetObjectItemCaseSensitive(j, "on"), *tz = cJSON_GetObjectItemCaseSensitive(j, "tz");
+        int tz_x10 = settings_get()->tz_std_x10;
+        if (cJSON_IsNumber(tz)) {
+            double x = tz->valuedouble * 10.0;
+            tz_x10 = (int)(x < 0 ? x - 0.5 : x + 0.5);
+        }
+        int rule = settings_get()->dst_rule, zone;
+        if (get_int(j, "zone", &zone)) {            /* a zone from the list sets both the offset and the rule */
+            const tz_zone_t *z = tz_get(zone);
+            if (z) {
+                tz_x10 = z->tz_std_x10;
+                rule = z->rule;
+            } else {
+                rule = -1;
+            }
+        } else {
+            get_int(j, "rule", &rule);
+        }
+        err |= (rule < 0 || rule > 4) ? ESP_ERR_INVALID_ARG
+                                      : autoclock_ntp_configure(cJSON_IsBool(on) ? cJSON_IsTrue(on) : settings_get()->ntp_on,
+                                                                (int16_t)tz_x10, (uint8_t)rule);
+        n++;
+    }
+    if (cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "ntp_check"))) {
+        autoclock_ntp_check_now();
+        n++;
+    }
+    if (cJSON_IsObject(j = cJSON_GetObjectItemCaseSensitive(root, "fans"))) {
+        /* {"in":[30,50,80],"out":[30,50,80]}: percent per speed, null or missing = leave as is */
+        uint16_t duty[6] = {0};
+        uint8_t mask = 0;
+        bool bad = false;
+        static const char *const side[2] = {"in", "out"};
+        for (int s = 0; s < 2; s++) {
+            const cJSON *arr = cJSON_GetObjectItemCaseSensitive(j, side[s]);
+            for (int i = 0; i < 3 && cJSON_IsArray(arr); i++) {
+                const cJSON *e = cJSON_GetArrayItem(arr, i);
+                if (!cJSON_IsNumber(e)) {
+                    continue;
+                }
+                double x10 = e->valuedouble * 10.0 + 0.5;
+                if (x10 < MVHR_FAN_DUTY_MIN_X10 || x10 > MVHR_FAN_DUTY_MAX_X10 + 0.99) {
+                    bad = true;
+                    continue;
+                }
+                duty[3 * s + i] = (uint16_t)x10;
+                mask |= 1u << (3 * s + i);
+            }
+        }
+        err |= (bad || !mask || !st.cfg_len) ? ESP_ERR_INVALID_ARG : mvhr_set_fan_duties(duty, mask);
         n++;
     }
     if (cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "reset_filter"))) {

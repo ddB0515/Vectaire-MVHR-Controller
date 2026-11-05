@@ -4,6 +4,7 @@
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "autoclock.h"
 #include "ha.h"
 #include "mvhr.h"
 #include "net.h"
@@ -62,6 +63,8 @@ void app_main(void)
     const bool simulated = settings_get()->unit_simulator;
 #endif
     ESP_ERROR_CHECK(mvhr_start(simulated));
+    autoclock_start();
+    mvhr_set_outdoor_offset(settings_get()->outdoor_offset_x10);
     ESP_ERROR_CHECK(net_start());
     if (ha_start() != ESP_OK) {
         ESP_LOGE(TAG, "Home Assistant (MQTT) failed to start");
