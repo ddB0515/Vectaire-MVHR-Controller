@@ -45,7 +45,7 @@ int main(void)
     CHECK(f.addr == 0xD1 && f.cmd == 0x00 && f.len == 20);
     CHECK(mvhr_decode_reply(&st, f.cmd, f.data, f.len) == MVHR_G_STATUS);
     CHECK(st.temp_extract_x10 == 213 && st.temp_supply_x10 == 203);
-    CHECK(st.humidity_x10 == 330 && st.fan_a_pct == 60 && st.fan_b_pct == 42);
+    CHECK(st.humidity_x10 == 330 && st.fan_a_pct == 42 && st.fan_b_pct == 60);   /* intake is status byte 11, exhaust byte 10 */
     CHECK(st.fan_speed == 1 && st.alarms == 0 && st.holiday == false);
     CHECK(st.bypass_override == MVHR_BYPASS_AUTO && st.bypass_locked);
 

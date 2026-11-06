@@ -157,8 +157,8 @@ static int status(uint8_t *out, uint32_t now_ms)
     /* fan duties: higher with each speed and during boost, lower on holiday */
     uint8_t duty = (st & 0x0F) == MVHR_FUNC_BOOST ? 100 : 30 + 20 * (s.fan + 1);   /* s.fan is 0..2 */
     duty = s.holiday ? duty / 2 : duty;
-    out[10] = duty;
-    out[11] = duty - 10;
+    out[11] = duty;             /* intake */
+    out[10] = duty - 10;        /* exhaust */
     out[12] = s.bypass_override <= 2 ? s.bypass_override : 0;
     out[13] = supply < -30;
     out[14] = s.bypass_override;

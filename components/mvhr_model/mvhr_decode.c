@@ -24,8 +24,8 @@ static uint32_t decode_status(mvhr_state_t *st, const uint8_t *d, uint8_t len)
     st->status = d[6];
     st->humidity_x10 = be16(&d[7]);
     st->fan_speed = (uint8_t)(d[9] <= 2 ? d[9] + 1 : 1);
-    st->fan_a_pct = d[10];
-    st->fan_b_pct = d[11];
+    st->fan_a_pct = d[11];      /* intake: confirmed on a real unit against the original panel (byte 11, not 10) */
+    st->fan_b_pct = d[10];      /* exhaust: byte 10 */
     st->bypass_auto_state = d[12];
     st->frost = d[13] != 0;
     st->bypass_override = d[14] <= 2 ? (int8_t)d[14] : MVHR_BYPASS_AUTO;

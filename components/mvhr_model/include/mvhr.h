@@ -77,8 +77,8 @@ typedef struct {
     uint8_t status;             /* raw status byte: function (low nibble) + indicators */
     uint16_t humidity_x10;      /* status bytes 7-8: relative humidity (inside), 0.1 %; see mvhr_humidity_shown() */
     uint8_t fan_speed;          /* 1..3 */
-    uint8_t fan_a_pct;          /* status byte 10: probably intake fan duty, 0..100 % */
-    uint8_t fan_b_pct;          /* status byte 11: probably exhaust fan duty, 0..100 % */
+    uint8_t fan_a_pct;          /* status byte 11: intake fan duty, 0..100 % (checked against the original panel) */
+    uint8_t fan_b_pct;          /* status byte 10: exhaust fan duty, 0..100 % (checked against the original panel) */
     uint8_t bypass_auto_state;  /* 0 heat recovery, 1 bypass, 2 third state */
     bool frost;
     int8_t bypass_override;     /* MVHR_BYPASS_AUTO or 0..2 */
