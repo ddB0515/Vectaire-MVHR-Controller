@@ -1,0 +1,67 @@
+menu "Vectaire"
+
+    config VECTAIRE_FORCE_UNIT_SIMULATOR
+        bool "Always use the built-in unit simulator"
+        default n
+        help
+            Run against the simulated unit regardless of the saved unit_simulator setting.
+            For development without a unit; the bus UART is not used at all.
+
+    config VECTAIRE_BUS_TX_GPIO
+        int "MVHR bus TX GPIO (drives the NPN transistor)"
+        default 25 if IDF_TARGET_ESP32
+        default 17 if IDF_TARGET_ESP32S3
+        default 4 if IDF_TARGET_ESP32C3
+        default 2
+        help
+            Output to the NPN base resistor; the transistor pulls the 12 V bus low. TX is inverted in the UART.
+            The display board uses IO2 on its 4-pin connector.
+
+    config VECTAIRE_BUS_RX_GPIO
+        int "MVHR bus RX GPIO (through the 15k/4.7k divider)"
+        default 26 if IDF_TARGET_ESP32
+        default 18 if IDF_TARGET_ESP32S3
+        default 5 if IDF_TARGET_ESP32C3
+        default 3
+
+    config VECTAIRE_BUTTON_GPIO
+        int "Button GPIO (to GND)"
+        default 0 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S3
+        default 9 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C6
+        default 28
+        help
+            Hold 5 s: forget Wi-Fi and restart into setup. On a headless controller a shorter press (1-4 s) opens
+            the setup hotspot without forgetting anything. The default is the board's BOOT button.
+
+    choice VECTAIRE_LED
+        prompt "Status LED"
+        default VECTAIRE_LED_GPIO if IDF_TARGET_ESP32
+        default VECTAIRE_LED_WS2812
+
+        config VECTAIRE_LED_NONE
+            bool "None"
+        config VECTAIRE_LED_GPIO
+            bool "Single LED on a GPIO"
+        config VECTAIRE_LED_WS2812
+            bool "WS2812 RGB LED"
+    endchoice
+
+    config VECTAIRE_LED_PIN
+        int "Status LED GPIO"
+        depends on !VECTAIRE_LED_NONE
+        default 2 if IDF_TARGET_ESP32
+        default 48 if IDF_TARGET_ESP32S3
+        default 8 if IDF_TARGET_ESP32C3 || IDF_TARGET_ESP32C6
+        default 27
+        help
+            Defaults are the devkits' LEDs: ESP32 DevKit V1 GPIO2, ESP32-S3-DevKitC-1 GPIO48 (v1.1: GPIO38),
+            ESP32-C3/C6 GPIO8, ESP32-C5-DevKitC-1 GPIO27.
+
+    config VECTAIRE_LED_ACTIVE_LOW
+        bool "LED lights when the GPIO is low"
+        depends on VECTAIRE_LED_GPIO
+        default n
+        help
+            For example the ESP32-C3 "Super Mini" (blue LED on GPIO8).
+
+endmenu

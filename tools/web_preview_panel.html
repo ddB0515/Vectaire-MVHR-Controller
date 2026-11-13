@@ -1,0 +1,85 @@
+<!-- Injected into the served home page by tools/web_preview.py (the page file itself is untouched).
+     Sliders and menus that change the mock data. -->
+<style>
+#pv{position:fixed;right:8px;bottom:8px;z-index:99999;font:12px system-ui,sans-serif;color:#1d2730;background:#fffffff2;
+ border:1px solid #9aa7b1;border-radius:8px;box-shadow:0 2px 12px #0004;max-width:300px}
+#pv>b{display:block;padding:6px 10px;cursor:pointer;user-select:none}
+#pv .body{padding:2px 10px 8px;max-height:70vh;overflow:auto;display:none}
+#pv.open .body{display:block}
+#pv label{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:4px 0}
+#pv input[type=range]{width:110px}#pv input[type=number]{width:62px}#pv select{max-width:150px}
+#pv .v{min-width:28px;text-align:right}
+#pv button{margin-top:6px}
+</style>
+<div id="pv" class="open"><b id="pvh">&#9881; Preview controls (mock data)</b><div class="body" id="pvb"></div></div>
+<script>
+(function(){
+const F=['Normal','Boost starting','Switch boost','Overrun','Boost','Humidity boost','CO2 boost','Timed boost','Purge','Purge ending','Night mode','Holiday','Frost protection'];
+const BOOST={'Boost starting':'Delay','Switch boost':'On','Overrun':'Overrun','Boost':'On','Humidity boost':'On','CO2 boost':'On','Timed boost':'On','Purge':'On','Purge ending':'Overrun'};
+const AL=[['None',0],['Clean the filters',128],['Fire alarm',1],['Condensate drain pan full',2],['Intake fan fault (MTR-1)',256],['Exhaust fan fault (MTR-1)',2048],['Temperature probe fault (NTC1)',4],['Clock needs setting',32]];
+// [key, label, type, options | min, max, step]
+const FIELDS=[
+ ['online','Unit online','check'],
+ ['function','Function','sel',F],
+ ['airflow','Airflow','sel',['Heat recovery','Bypass','Intake motor off']],
+ ['bypass','Bypass setting','sel',['auto','heat','bypass','mode3']],
+ ['fan','Fan speed','nsel',[1,2,3]],
+ ['t_in','Indoor °C','num',-20,45,0.1],
+ ['t_out','Outdoor °C','num',-30,45,0.1],
+ ['rh','Humidity %','range',0,100,1],
+ ['fan_a','Intake fan %','range',0,100,1],
+ ['fan_b','Exhaust fan %','range',0,100,1],
+ ['alarms','Alarm','alarm'],
+ ['filter','Filter saturation %','range',0,100,1],
+ ['holiday','Holiday mode','check'],
+ ['frost','Frost protection','check'],
+ ['device.ha','Home Assistant','sel',['off','connecting','connected']],
+ ['device.rssi','Wi-Fi signal dBm','range',-95,-30,1]];
+const $=id=>document.getElementById(id);
+async function mock(q){
+  const r=await fetch('/mock'+(q?'?'+q:''),{cache:'no-store'});const s=await r.json();
+  if(window.poll)poll();return s;
+}
+const get=(s,k)=>k.split('.').reduce((o,p)=>o==null?o:o[p],s);
+function send(k,v){
+  let q=encodeURIComponent(k)+'='+encodeURIComponent(JSON.stringify(v));
+  if(k==='function'){
+    q+='&boost='+encodeURIComponent(JSON.stringify(BOOST[v]||'Off'));
+    if(v==='Holiday')q+='&holiday=true';
+  }
+  if(k==='alarms'){q+='&alarm='+encodeURIComponent(JSON.stringify(AL.find(a=>a[1]===v)[0]));}
+  mock(q);
+}
+function build(s){
+  const b=$('pvb');b.innerHTML='';
+  for(const [k,label,type,a,mx,st] of FIELDS){
+    const l=document.createElement('label');l.append(label);const v=get(s,k);let el;
+    if(type==='check'){
+      el=document.createElement('input');el.type='checkbox';el.checked=!!v;el.onchange=()=>send(k,el.checked);
+    }else if(type==='sel'||type==='nsel'){
+      el=document.createElement('select');
+      for(const o of a){const op=document.createElement('option');op.textContent=o;el.append(op);}
+      el.value=a.map(String).includes(String(v))?String(v):String(a[0]);
+      el.onchange=()=>send(k,type==='nsel'?+el.value:el.value);
+    }else if(type==='alarm'){
+      el=document.createElement('select');
+      for(const [t,n] of AL){const op=document.createElement('option');op.textContent=t;op.value=n;el.append(op);}
+      el.value=v||0;el.onchange=()=>send(k,+el.value);
+    }else if(type==='num'){
+      el=document.createElement('input');el.type='number';el.min=a;el.max=mx;el.step=st;el.value=v==null?0:v;
+      el.onchange=()=>send(k,+el.value);
+    }else{
+      el=document.createElement('input');el.type='range';el.min=a;el.max=mx;el.step=st;el.value=v==null?a:v;
+      const o=document.createElement('span');o.className='v';o.textContent=el.value;
+      el.oninput=()=>{o.textContent=el.value;send(k,+el.value);};
+      l.append(el,o);b.append(l);continue;
+    }
+    l.append(el);b.append(l);
+  }
+  const r=document.createElement('button');r.textContent='Reset to defaults';
+  r.onclick=async()=>build(await mock('reset=1'));b.append(r);
+}
+$('pvh').onclick=()=>$('pv').classList.toggle('open');
+mock().then(build);
+})();
+</script>

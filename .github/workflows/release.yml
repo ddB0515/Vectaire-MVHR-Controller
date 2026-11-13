@@ -1,0 +1,110 @@
+# Builds the firmware for the two supported release variants and, for a version tag, publishes them as a GitHub
+# Release. Tag = PROJECT_VER from CMakeLists.txt (x.y.z, no "v" prefix), e.g.:  git tag 0.10.10 && git push origin 0.10.10
+# "Run workflow" (Actions tab) builds the same files without a release, they are kept as workflow artifacts.
+name: Firmware release
+
+on:
+  push:
+    tags: ["[0-9]+.[0-9]+.[0-9]+"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    container: espressif/idf:v6.1
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: esp32c5-display
+            variant: ""
+            dir: build
+            image: vectaire_c5
+          - name: esp32-headless
+            variant: --headless esp32
+            dir: build-headless-esp32
+            image: vectaire_headless
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: version
+        shell: bash
+        run: |
+          ver=$(sed -n 's/^set(PROJECT_VER "\(.*\)")/\1/p' CMakeLists.txt)
+          echo "PROJECT_VER $ver"
+          if [[ ! "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::PROJECT_VER '$ver' in CMakeLists.txt is not in x.y.z form"
+            exit 1
+          fi
+          if [[ "$GITHUB_REF" == refs/tags/* ]] && [ "$GITHUB_REF_NAME" != "$ver" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match PROJECT_VER $ver in CMakeLists.txt (expected $ver)"
+            exit 1
+          fi
+          echo "ver=$ver" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh" > /dev/null
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          tools/idf.sh ${{ matrix.variant }} build
+          tools/idf.sh ${{ matrix.variant }} merge-bin -o factory.bin
+
+      - name: Package
+        shell: bash
+        run: |
+          out=vectaire-${{ steps.version.outputs.ver }}-${{ matrix.name }}
+          mkdir -p dist
+          cp "${{ matrix.dir }}/${{ matrix.image }}.bin" "dist/$out-ota.bin"
+          cp "${{ matrix.dir }}/factory.bin" "dist/$out-factory.bin"
+          cp "${{ matrix.dir }}/${{ matrix.image }}.elf" "dist/$out.elf"
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          body: |
+            ## Files
+
+            | Variant | Board |
+            |---|---|
+            | `esp32c5-display` | NiceMCU C5E-DEV 2.8IPS (ESP32-C5, touch screen) |
+            | `esp32-headless` | Classic ESP32 board without a screen, 4 MB flash or more |
+
+            - **`…-ota.bin`**: update over Wi-Fi. Keeps all settings. `tools/ota.sh <host> --no-build` uses the
+              local build; to install this file, upload it with
+              `curl -H "X-OTA-Password: <device password>" --data-binary @<file> http://<host>/api/ota` (the README shows a way that keeps the password out of the shell history).
+            - **`…-factory.bin`**: first install over USB, written at address 0. **Erases the saved settings**
+              (Wi-Fi, MQTT, device password: a new one is generated).
+              `esptool.py --chip esp32c5 write_flash 0x0 vectaire-…-esp32c5-display-factory.bin`
+              (`--chip esp32` for the headless file).
+            - **`….elf`**: for decoding a crash report from the Diagnostics page (`addr2line -e <elf> <address>`).
+            - **`SHA256SUMS`**: checksums of all files.
