@@ -105,6 +105,9 @@ the bus through a voltage divider.
 - **GND** of the controller and the unit must be connected.
 - **Power:** use a proper supply. Some USB power banks switch off at low load, which restarts the controller.
 
+Verified hardware adopter slightly modified is in `hardware` folder https://github.com/ddB0515/VectaireESP32/tree/main/hardware
+
+
 ### Default pins
 
 | Board / chip | Bus TX | Bus RX | Button | Status LED |
