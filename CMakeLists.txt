@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-set(PROJECT_VER "0.11.0")
+set(PROJECT_VER "0.11.1")
 
 # Build variant. "display" (default): the NiceMCU C5 board with its touch screen, sdkconfig in the project folder.
 # "headless": any ESP32 without a screen (no board/ui components, no LVGL); tools/idf.sh --headless <target> sets

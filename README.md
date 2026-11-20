@@ -199,7 +199,7 @@ to the home screen.
 | **Settings** | Humidity setpoint, boost delay, overrun, night mode, outdoor temperature offset |
 | **Fan speed settings** | The installer fan percentages per speed. Shown only once the unit's settings have been read; editable when unlocked, see [Fan speed settings](#fan-speed-settings) |
 | **Maintenance** | Filter saturation, reset filter counter, hours of service, the unit's clock (**Set unit clock to this device's time**, and [network time](#network-time)) |
-| **Device** | Firmware, unit firmware, Wi-Fi, Home Assistant status, uptime; **Change Wi-Fi network** (scan, pick, password). The new network is tried first and kept only if it connects within 45 s, otherwise the controller goes back to the old one |
+| **Device** | Firmware, unit firmware, Wi-Fi, Home Assistant status, uptime; **Change Wi-Fi network** (scan, pick, password). The new network is tried first and kept only if it connects within 45 s, otherwise the controller goes back to the old one; **Change device password** (see [Device password](#device-password)) |
 | **Changes** (at the bottom) | Unlock with the [device password](#device-password) to make changes; the password stays only in that browser tab |
 
 Viewing needs no password; making changes does.
@@ -319,7 +319,7 @@ the unit gave them.
 ## Device password
 
 Each controller generates its own **device password** on its first start and keeps it in its flash. Updates don't
-change it. It protects:
+change it, but you can replace it with your own from the web page (see below). It protects:
 
 - firmware updates over Wi-Fi,
 - changes from the web page,
@@ -331,6 +331,13 @@ Where to find it:
 - **Headless:** at the top of the setup page. Press the button for 1–4 s to open the setup hotspot again and read it.
 
 The password is never stored on your computer by the tools in this project.
+
+**Changing it:** on the home page, unlock with the current password, then **Device › Change device password**. The
+first time, the current password is the generated one. Enter it again, then the new one twice: 8–32 characters,
+letters, digits and symbols, no spaces. From then on the new password is needed for everything above (including
+`tools/ota.sh`), and the screen (or the setup page, headless) shows the new one. The API is `POST /api/password` with
+the current password in `X-OTA-Password` and `{"new":"..."}` as the body. A factory install over USB erases it and a
+new one is generated.
 
 ## Button and status LED
 

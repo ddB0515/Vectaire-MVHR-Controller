@@ -18,6 +18,10 @@ typedef enum {
 #define SETTINGS_MQTT_INTERVAL_MIN  5
 #define SETTINGS_MQTT_INTERVAL_MAX  3600
 
+/* device password set from the web page: this many printable ASCII characters, no spaces */
+#define SETTINGS_PASSWORD_MIN       8
+#define SETTINGS_PASSWORD_MAX       32
+
 typedef struct {
     settings_mode_t mode;
     char wifi_ssid[33];
@@ -38,12 +42,17 @@ typedef struct {
     uint8_t dst_rule;               /* summer time rule for network time: dst_rule_t, 4 = none (standard time all year) */
     bool dark_theme;                /* display colours */
     bool unit_simulator;            /* run against the built-in simulated unit */
-    char ota_password[17];          /* for firmware uploads over Wi-Fi; generated on first start */
+    char ota_password[SETTINGS_PASSWORD_MAX + 1]; /* device password: OTA and web changes; generated on first start,
+                                                     can be changed from the web page (/api/password) */
 } settings_t;
 
 esp_err_t settings_init(void);      /* nvs_flash_init + load */
 const settings_t *settings_get(void);
 esp_err_t settings_save(const settings_t *s);
+
+/* true if pw is SETTINGS_PASSWORD_MIN..MAX printable ASCII characters without spaces (it travels in an HTTP
+   header, so nothing else is safe) */
+bool settings_password_valid(const char *pw);
 
 /* Forget Wi-Fi/MQTT and return to the first-start choice. */
 esp_err_t settings_reset_network(void);

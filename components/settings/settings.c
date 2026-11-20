@@ -41,6 +41,20 @@ static void generate_password(char *out, size_t size)
     out[n] = 0;
 }
 
+bool settings_password_valid(const char *pw)
+{
+    size_t n = strlen(pw);
+    if (n < SETTINGS_PASSWORD_MIN || n > SETTINGS_PASSWORD_MAX) {
+        return false;
+    }
+    for (size_t i = 0; i < n; i++) {
+        if (pw[i] < 0x21 || pw[i] > 0x7e) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static void get_str(nvs_handle_t h, const char *key, char *dst, size_t size)
 {
     size_t len = size;

@@ -181,6 +181,18 @@ ul.nets li.sel{background:var(--bg)}
     <button id="wifigo">Switch network</button>
   </div>
   <p id="wifimsg" class="meta"></p>
+  <button class="ghost" id="pwopen">Change device password</button>
+  <div id="pwbox" class="hidden">
+    <label for="pwcur">Current device password</label>
+    <input id="pwcur" type="password" autocomplete="current-password" maxlength="32">
+    <label for="pwnew">New password</label>
+    <input id="pwnew" type="password" autocomplete="new-password" maxlength="32">
+    <label for="pwnew2">New password again</label>
+    <input id="pwnew2" type="password" autocomplete="new-password" maxlength="32">
+    <p class="meta">8–32 characters: letters, digits and symbols, no spaces. Until you change it, the current password is the one the controller generated (shown on its screen, or on the setup page without a screen). The new one is used for this page, the Home Assistant settings page and firmware updates (<code>tools/ota.sh</code>), and the screen shows the new one.</p>
+    <button id="pwgo">Change password</button>
+  </div>
+  <p id="pwmsg" class="meta"></p>
   <p class="meta links"><a href="/ha">Home Assistant settings</a><a href="/diag">Diagnostics</a></p>
 </div>
 
@@ -223,6 +235,7 @@ function applyLock(){
   const on=!locked()&&S&&S.online;
   document.querySelectorAll('.seg button,[data-save],#resetfilter,#setclock,#outoff,#zone,#ntpnow,#rhset,#bdelay,#overrun,#nstart,#nend,.fs input').forEach(e=>e.disabled=!on);
   $('wifiopen').disabled=locked();if(locked())$('wifibox').classList.add('hidden');
+  $('pwopen').disabled=locked();if(locked())$('pwbox').classList.add('hidden');
   $('lockform').classList.toggle('hidden',!locked());
   $('lockstate').textContent=locked()?'Locked':'Unlocked';
   $('lockhint').classList.toggle('hidden',!locked());
@@ -363,6 +376,26 @@ $('wifigo').onclick=async()=>{
     $('wpass').value='';$('wifibox').classList.add('hidden');
     m.className='meta';m.textContent=`Trying ${ssid}… this page catches up once the controller is back (up to a minute).`;
   }catch(e){m.className='err';m.textContent='Controller not reachable';}
+};
+$('pwopen').onclick=()=>$('pwbox').classList.toggle('hidden');
+$('pwgo').onclick=async()=>{
+  const cur=$('pwcur').value,nw=$('pwnew').value,m=$('pwmsg');
+  const bad=t=>{m.className='err';m.textContent=t;};
+  if(!cur)return bad('Enter the current device password');
+  if(!/^[\x21-\x7e]{8,32}$/.test(nw))return bad('The new password needs 8–32 characters: letters, digits and symbols, no spaces');
+  if(nw!==$('pwnew2').value)return bad('The two new passwords are not the same');
+  if(nw===cur)return bad('The new password is the same as the current one');
+  if(!confirm('Change the device password?\n\nWrite the new one down: firmware updates and every change from this page need it.'))return;
+  $('pwgo').disabled=true;
+  try{
+    const r=await fetch('/api/password',{method:'POST',headers:{'X-OTA-Password':cur,'Content-Type':'application/json'},body:JSON.stringify({new:nw})});
+    if(r.status===401)return bad('The current password is wrong');
+    if(!r.ok)return bad(await r.text());
+    pw=nw;sessionStorage.setItem('vpw',nw);
+    ['pwcur','pwnew','pwnew2'].forEach(id=>$(id).value='');$('pwbox').classList.add('hidden');
+    m.className='ok';m.textContent='Device password changed. This tab stays unlocked with the new one.';
+  }catch(e){bad('Controller not reachable');}
+  finally{$('pwgo').disabled=false;}
 };
 poll();setInterval(poll,3000);
 </script>

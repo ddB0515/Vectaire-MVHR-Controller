@@ -347,6 +347,51 @@ static esp_err_t wifi_post(httpd_req_t *req)
     return httpd_resp_sendstr(req, "{\"ok\":true}");
 }
 
+/* POST /api/password {"new"}: change the device password. The current one (the generated one until it is first
+   changed) goes in the X-OTA-Password header as for every other change. */
+static esp_err_t password_post(httpd_req_t *req)
+{
+    if (!net_password_ok(req)) {
+        return unauthorized(req);
+    }
+    if (req->content_len <= 0 || req->content_len > 256) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "bad length");
+    }
+    char buf[257];
+    int got = 0;
+    while (got < req->content_len) {
+        int r = httpd_req_recv(req, buf + got, req->content_len - got);
+        if (r <= 0) {
+            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "read");
+        }
+        got += r;
+    }
+    buf[got] = 0;
+    cJSON *root = cJSON_Parse(buf);
+    if (!root) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "json");
+    }
+    const cJSON *np = cJSON_GetObjectItemCaseSensitive(root, "new");
+    bool ok = cJSON_IsString(np) && np->valuestring && settings_password_valid(np->valuestring);
+    settings_t s = *settings_get();
+    if (ok) {
+        strlcpy(s.ota_password, np->valuestring, sizeof(s.ota_password));
+    }
+    cJSON_Delete(root);
+    if (!ok) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+                                   "the new password needs 8-32 characters: letters, digits and symbols, no spaces");
+    }
+    esp_err_t err = settings_save(&s);
+    memset(&s, 0, sizeof(s));
+    if (err != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "could not save the password");
+    }
+    ESP_LOGI(TAG, "device password changed");      /* never the password itself */
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, "{\"ok\":true}");
+}
+
 /* Phones probe e.g. /generate_204 or /hotspot-detect.html: send them to the setup page */
 static esp_err_t not_found(httpd_req_t *req, httpd_err_code_t err)
 {
@@ -380,6 +425,7 @@ esp_err_t portal_start(void)
         {.uri = "/api/mqtt", .method = HTTP_GET, .handler = mqtt_get},
         {.uri = "/api/mqtt", .method = HTTP_POST, .handler = mqtt_post},
         {.uri = "/api/wifi", .method = HTTP_POST, .handler = wifi_post},
+        {.uri = "/api/password", .method = HTTP_POST, .handler = password_post},
     };
     for (size_t i = 0; i < sizeof(uris) / sizeof(uris[0]); i++) {
         httpd_register_uri_handler(s_server, &uris[i]);

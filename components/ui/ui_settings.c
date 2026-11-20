@@ -684,7 +684,9 @@ static void device_refresh(const mvhr_state_t *st)
     fmt_duration(buf, sizeof(buf), settings_get()->screen_timeout_s);
     lv_label_set_text(s_row_c.value, buf);
     if (s_show_password) {
-        lv_label_set_text_fmt(s_row_fw.sub, "Device password: %s", settings_get()->ota_password);
+        /* a long password set from the web page (up to 32 characters) only fits the row without the prefix */
+        const char *pw = settings_get()->ota_password;
+        lv_label_set_text_fmt(s_row_fw.sub, strlen(pw) > 16 ? "%s" : "Device password: %s", pw);
     } else {
         lv_label_set_text_fmt(s_row_fw.sub, "Unit %u.%u%s. Tap for the password", st->fw_major, st->fw_minor,
                               mvhr_is_simulated() ? " (simulated)" : "");
