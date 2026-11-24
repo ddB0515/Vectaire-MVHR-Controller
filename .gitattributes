@@ -9,3 +9,7 @@ Kconfig* text eol=lf
 sdkconfig* text eol=lf
 *.pdf binary
 *.png binary
+# 3D models: keep them byte for byte (STEP files are text, but must not get line-ending changes)
+*.stl binary
+*.step binary
+*.f3d binary

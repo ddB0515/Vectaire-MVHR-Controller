@@ -1,6 +1,16 @@
 # Vectaire MVHR controller
 
+<div align="center">
+  <img src="photos/Front%20Panel.jpg" alt="The controller fitted to a Vectaire Midi in the 3D-printed front panel" width="520">
+  <br><br>
+  <img src="photos/Screen%20Dark.png" alt="Home screen, dark theme" width="300">
+  &nbsp;&nbsp;
+  <img src="photos/Screen%20Light.png" alt="Home screen, light theme" width="300">
+</div>
+
 ESP32 firmware that **replaces the original LCD control panel** of a Vectaire MVHR (heat-recovery ventilation) unit.
+It is tested on the **Vectaire Midi** and may also work with the **Maxi**, which uses the same kind of panel (see
+[MVHR units](#mvhr-units)).
 The controller talks to the unit over its 12 V one-wire bus. It shows everything on its own touch screen, or works
 without a screen, and you can also use it from a phone or a computer:
 
@@ -76,8 +86,37 @@ PSRAM is not needed. The default pins for each chip are in [Wiring](#default-pin
 
 ### MVHR units
 
+| Unit | Status |
+|---|---|
+| **Vectaire Midi** | Tested: the controller runs in place of the original LCD panel |
+| **Vectaire Maxi** | Not tested. It may work, as it uses the same LCD panel on the same one-wire bus, but check it carefully first |
+
 The controller works with Vectaire units that use the original LCD panel on the one-wire bus (1200 baud). Units with
-config block version 1.3 (49 bytes) and 2.0 (67 bytes) are recognised. The protocol has been checked against real units.
+config block version 1.3 (49 bytes) and 2.0 (67 bytes) are recognised.
+
+If you try it on a Maxi (or another Vectaire unit), keep the original panel so you can put it back, start with
+**Diagnostics** to confirm the unit answers, and please report what works.
+
+### Front panel (3D print)
+
+[`midi-panel-3d-model/`](midi-panel-3d-model/) has a 3D-printable front panel for the display variant, made for the
+**Vectaire Midi**:
+
+| File | What it is |
+|---|---|
+| `Front Panel.stl` / `Front Panel.step` | The front panel that holds the display board |
+| `PSU Plate.stl` / `PSU Plate.step` | The PSU plate |
+| `Vectaire MVHR Screen Panel.f3d` | The Fusion 360 source, for changes |
+
+Print the `.stl` files; the `.step` files are for other CAD programs. The photo at the top of this README shows the
+panel fitted to a Midi.
+
+You will also need **M3 threaded inserts** (heat-set into the printed parts):
+
+| Part | Inserts |
+|---|---|
+| Front panel, for the screen | 4 × M3 × 4 mm |
+| PSU plate | 4 × M3 × 5.5 mm |
 
 ## Wiring to the MVHR
 
@@ -155,6 +194,10 @@ doesn't resolve `.local` names.
 
 ## Using the touch screen
 
+<p align="center">
+  <img src="photos/Screen.jpg" alt="The home screen" width="420">
+</p>
+
 **Home screen** shows:
 - a house with the **airflow mode** under the roof (heat recovery in orange, bypass in blue, intake motor off in
   green, each with its icon) and the **inside temperature and humidity** along the bottom ("Low" below 35 %, "High"
@@ -189,6 +232,10 @@ to the home screen.
 **Dark theme:** Menu › Device › Dark theme. It is saved and applied straight away.
 
 ## Web page
+
+<p align="center">
+  <img src="photos/web%20interface.png" alt="The web page: overview, ventilation and settings" width="320">
+</p>
 
 `http://vectaire-xxxx.local/` works on both variants and uses the phone's or computer's light or dark mode.
 
@@ -387,6 +434,8 @@ MQTT settings are kept in both cases.
 | `test/host/` | Unit tests for the bus codec, decoder and simulator; these run on a PC |
 | `tools/` | `idf.sh`, `ota.sh`, `gen_icons.py` (screen icons), `web_preview.py` (web page preview) |
 | `docs/` | [`HEADLESS.md`](docs/HEADLESS.md); `home_preview.html` (mock of the home screen); `board/`: vendor schematic, display spec and demo sketch |
+| `midi-panel-3d-model/` | 3D-printable front panel and power supply plate for the Vectaire Midi (STL, STEP, Fusion 360) |
+| `photos/` | Photos used in this README |
 
 **Host tests** run on a PC and don't need ESP-IDF:
 
